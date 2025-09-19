@@ -91,7 +91,7 @@ export function UTMMediumSelect({ value, onChange, mediums, onAddMedium, setting
             >
               {value
                 ? mediums.find((medium) => medium.value === value)?.label
-                : "Select medium..."}
+                : "Search or select medium..."}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </FormControl>
@@ -99,7 +99,7 @@ export function UTMMediumSelect({ value, onChange, mediums, onAddMedium, setting
         <PopoverContent className="w-full p-0">
           <Command>
             <CommandInput
-              placeholder="Search mediums..."
+              placeholder="Search or select medium..."
               value={searchValue}
               onValueChange={setSearchValue}
             />
@@ -128,14 +128,20 @@ export function UTMMediumSelect({ value, onChange, mediums, onAddMedium, setting
                       setOpen(false);
                       setSearchValue("");
                     }}
+                    className="flex items-center justify-between"
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        value === medium.value ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {medium.label}
+                    <div className="flex items-center">
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          value === medium.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span>{medium.label}</span>
+                        <span className="text-xs text-muted-foreground">{medium.value}</span>
+                      </div>
+                    </div>
                   </CommandItem>
                 ))}
               </CommandGroup>
