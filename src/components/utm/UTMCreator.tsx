@@ -250,11 +250,17 @@ export function UTMCreator() {
                     Campaign name helper
                   </Button>
                 </div>
-                <UTMCampaignInput
-                  value={form.watch('utm_campaign')}
-                  onChange={(value) => form.setValue('utm_campaign', value)}
-                  campaigns={campaigns}
-                  settings={settings}
+                <FormField
+                  control={form.control}
+                  name="utm_campaign"
+                  render={({ field }) => (
+                    <UTMCampaignInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      campaigns={campaigns}
+                      settings={settings}
+                    />
+                  )}
                 />
               </div>
 
