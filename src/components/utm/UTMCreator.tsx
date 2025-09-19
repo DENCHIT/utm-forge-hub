@@ -162,7 +162,9 @@ export function UTMCreator() {
   };
 
   const handleEventTemplate = (template: string) => {
+    console.log("handleEventTemplate called with:", template);
     form.setValue('utm_campaign', template);
+    console.log("Form utm_campaign value set to:", form.getValues('utm_campaign'));
     setIsEventModalOpen(false);
   };
 
