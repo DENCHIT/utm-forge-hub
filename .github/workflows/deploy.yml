@@ -8,43 +8,46 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Build application
-      run: npm run build
-      
-    - name: Prepare upload directory
-      run: |
-        mkdir -p upload
-        # Copy built frontend files
-        cp -r dist/* upload/
-        # Copy API files
-        cp -r api upload/
-        # Remove example config to avoid overwriting production config
-        rm -f upload/api/config.example.php
-        
-    - name: Deploy to Hostinger via FTP
-  uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-  with:
-    server: ${{ secrets.FTP_HOST }}
-    username: ${{ secrets.FTP_USERNAME }}
-    password: ${{ secrets.FTP_PASSWORD }}
-    local-dir: upload/
-    server-dir: public_html/
-    exclude: |
-      **/.git*
-      **/.git*/**
-      **/node_modules/**
-      **/.env
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Prepare upload directory
+        run: |
+          rm -rf upload && mkdir -p upload
+          # built frontend
+          cp -r dist/* upload/
+          # copy SPA .htaccess if present
+          if [ -f public/.htaccess ]; then cp public/.htaccess upload/.htaccess; fi
+          # PHP API
+          mkdir -p upload/api
+          cp -r api/*.php upload/api/ 2>/dev/null || true
+          # never ship the example config
+          rm -f upload/api/config.example.php
+
+      - name: Deploy to Hostinger via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: upload/
+          server-dir: public_html/
+          dangerous-clean-slate: true
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/.env
