@@ -19,6 +19,7 @@ export function AdminPanel() {
   const [campaigns, setCampaigns] = useState<UTMOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editingData, setEditingData] = useState<Record<string, any>>({});
   const [newItem, setNewItem] = useState({ label: "", value: "" });
   const { toast } = useToast();
 
@@ -176,6 +177,47 @@ export function AdminPanel() {
     }
   };
 
+  const updateItemField = (id: string, field: string, value: any, kind: 'source' | 'medium' | 'campaign') => {
+    const updateFn = (items: UTMOption[]) =>
+      items.map(item => item.id === id ? { ...item, [field]: value } : item);
+
+    if (kind === 'source') setSources(updateFn(sources));
+    else if (kind === 'medium') setMediums(updateFn(mediums));
+    else setCampaigns(updateFn(campaigns));
+  };
+
+  const saveItem = async (id: string, kind: 'source' | 'medium' | 'campaign') => {
+    try {
+      const item = [...sources, ...mediums, ...campaigns].find(i => i.id === id);
+      if (!item) return;
+
+      const { error } = await supabase
+        .from('utm_options')
+        .update({
+          label: item.label,
+          value: item.value,
+          active: item.active,
+          requires_keyword: item.requires_keyword || false,
+          requires_location_event: item.requires_location_event || false,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setEditingItem(null);
+      toast({
+        title: "Success!",
+        description: `${kind} option updated successfully.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
   const getNextDisplayOrder = (kind: 'source' | 'medium' | 'campaign') => {
     const items = kind === 'source' ? sources : kind === 'medium' ? mediums : campaigns;
     return Math.max(0, ...items.map(item => item.display_order || 0)) + 1;
@@ -204,7 +246,7 @@ export function AdminPanel() {
           />
           <Button onClick={() => addOption(kind)} size="sm">
             <Plus className="w-4 h-4 mr-1" />
-            Add
+            Add New
           </Button>
         </div>
       </div>
@@ -212,38 +254,130 @@ export function AdminPanel() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Label</TableHead>
-            <TableHead>Value</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead>LABEL</TableHead>
+            <TableHead>VALUE</TableHead>
+            {kind === 'campaign' && (
+              <>
+                <TableHead>REQUIRES KEYWORD</TableHead>
+                <TableHead>REQUIRES LOCATION</TableHead>
+              </>
+            )}
+            <TableHead>ACTIVE</TableHead>
+            <TableHead className="text-right">ACTIONS</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((item) => (
             <TableRow key={item.id}>
-              <TableCell className="font-medium">{item.label}</TableCell>
-              <TableCell className="font-mono text-sm">{item.value}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={item.active}
-                    onCheckedChange={(checked) => toggleActive(item.id, checked, kind)}
-                  />
-                  <Badge variant={item.active ? "default" : "secondary"}>
-                    {item.active ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-              </TableCell>
-              <TableCell className="text-right">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => deleteOption(item.id, kind)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TableCell>
+              {editingItem === item.id ? (
+                <>
+                  <TableCell>
+                    <Input
+                      value={item.label}
+                      onChange={(e) => updateItemField(item.id, 'label', e.target.value, kind)}
+                      className="w-full"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={item.value}
+                      onChange={(e) => updateItemField(item.id, 'value', e.target.value, kind)}
+                      className="w-full font-mono text-sm"
+                    />
+                  </TableCell>
+                  {kind === 'campaign' && (
+                    <>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={item.requires_keyword || false}
+                          onChange={(e) => updateItemField(item.id, 'requires_keyword', e.target.checked, kind)}
+                          className="w-4 h-4"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={item.requires_location_event || false}
+                          onChange={(e) => updateItemField(item.id, 'requires_location_event', e.target.checked, kind)}
+                          className="w-4 h-4"
+                        />
+                      </TableCell>
+                    </>
+                  )}
+                  <TableCell>
+                    <Switch
+                      checked={item.active}
+                      onCheckedChange={(checked) => updateItemField(item.id, 'active', checked, kind)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex gap-1 justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => saveItem(item.id, kind)}
+                        className="w-8 h-8 p-0 text-white bg-success hover:bg-success/80"
+                      >
+                        <Save className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingItem(null)}
+                        className="w-8 h-8 p-0 text-white bg-destructive hover:bg-destructive/80"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </>
+              ) : (
+                <>
+                  <TableCell className="font-medium">{item.label}</TableCell>
+                  <TableCell className="font-mono text-sm">{item.value}</TableCell>
+                  {kind === 'campaign' && (
+                    <>
+                      <TableCell>
+                        <Badge variant={item.requires_keyword ? "default" : "secondary"}>
+                          {item.requires_keyword ? "Yes" : "No"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={item.requires_location_event ? "default" : "secondary"}>
+                          {item.requires_location_event ? "Yes" : "No"}
+                        </Badge>
+                      </TableCell>
+                    </>
+                  )}
+                  <TableCell>
+                    <Switch
+                      checked={item.active}
+                      onCheckedChange={(checked) => toggleActive(item.id, checked, kind)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex gap-1 justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingItem(item.id)}
+                        className="w-8 h-8 p-0"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteOption(item.id, kind)}
+                        className="w-8 h-8 p-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </>
+              )}
             </TableRow>
           ))}
         </TableBody>
