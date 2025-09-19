@@ -208,7 +208,6 @@ export function UTMCreator() {
                 value={form.watch('utm_medium')}
                 onChange={(value) => form.setValue('utm_medium', value)}
                 mediums={mediums}
-                onAddMedium={(medium) => setMediums([...mediums, medium])}
                 settings={settings}
               />
             </div>
