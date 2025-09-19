@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_utm_preferences: {
+        Row: {
+          created_at: string
+          event_name: string | null
+          id: string
+          keyword: string | null
+          location: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_name?: string | null
+          id?: string
+          keyword?: string | null
+          location?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_name?: string | null
+          id?: string
+          keyword?: string | null
+          location?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       utm_links: {
         Row: {
           created_at: string

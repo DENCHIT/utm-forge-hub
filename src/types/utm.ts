@@ -48,6 +48,9 @@ export interface UTMFormData {
   utm_campaign: string;
   utm_term: string;
   utm_content: string;
+  keyword: string;
+  location: string;
+  event_name: string;
   custom_params: CustomParam[];
 }
 

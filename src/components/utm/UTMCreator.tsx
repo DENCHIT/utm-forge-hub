@@ -10,6 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UTMFormData, UTMSettings, UTMOption, UTMOptionRow, CustomParam } from "@/types/utm";
+
+interface UserUTMPreferences {
+  id: string;
+  user_id: string;
+  keyword: string | null;
+  location: string | null;
+  event_name: string | null;
+}
 import { buildUTMUrl, validateUrl, normalizeValue } from "@/lib/utm-utils";
 import { Copy, Link, Plus, Trash2 } from "lucide-react";
 import { UTMSourceSelect } from "./UTMSourceSelect";
@@ -25,6 +33,9 @@ const formSchema = z.object({
   utm_campaign: z.string().min(1, "Campaign is required"),
   utm_term: z.string().optional(),
   utm_content: z.string().optional(),
+  keyword: z.string().optional(),
+  location: z.string().optional(),
+  event_name: z.string().optional(),
   custom_params: z.array(z.object({
     key: z.string(),
     value: z.string(),
@@ -37,6 +48,7 @@ export function UTMCreator() {
   const [mediums, setMediums] = useState<UTMOption[]>([]);
   const [campaigns, setCampaigns] = useState<UTMOption[]>([]);
   const [finalUrl, setFinalUrl] = useState("");
+  const [userPreferences, setUserPreferences] = useState<UserUTMPreferences | null>(null);
   const { toast } = useToast();
 
   const form = useForm<UTMFormData>({
@@ -49,6 +61,9 @@ export function UTMCreator() {
       utm_campaign: "",
       utm_term: "",
       utm_content: "",
+      keyword: "",
+      location: "",
+      event_name: "",
       custom_params: [],
     },
   });
@@ -75,9 +90,12 @@ export function UTMCreator() {
 
   const loadInitialData = async () => {
     try {
-      const [settingsRes, optionsRes] = await Promise.all([
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const [settingsRes, optionsRes, preferencesRes] = await Promise.all([
         supabase.from('utm_settings').select('*').single(),
         supabase.from('utm_options').select('*').eq('active', true).order('display_order'),
+        user ? supabase.from('user_utm_preferences').select('*').eq('user_id', user.id).single() : Promise.resolve({ data: null, error: null }),
       ]);
 
       if (settingsRes.data) setSettings(settingsRes.data);
@@ -86,6 +104,14 @@ export function UTMCreator() {
         setSources(options.filter(opt => opt.kind === 'source') as UTMOption[]);
         setMediums(options.filter(opt => opt.kind === 'medium') as UTMOption[]);
         setCampaigns(options.filter(opt => opt.kind === 'campaign') as UTMOption[]);
+      }
+      
+      if (preferencesRes.data) {
+        setUserPreferences(preferencesRes.data);
+        // Pre-populate form with saved preferences
+        form.setValue('keyword', preferencesRes.data.keyword || '');
+        form.setValue('location', preferencesRes.data.location || '');
+        form.setValue('event_name', preferencesRes.data.event_name || '');
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -112,6 +138,26 @@ export function UTMCreator() {
           active: true,
           display_order: campaigns.length,
         });
+      }
+
+      // Save or update user preferences if they entered keyword, location, or event data
+      if (data.keyword || data.location || data.event_name) {
+        const preferencesData = {
+          user_id: user.id,
+          keyword: data.keyword || null,
+          location: data.location || null,
+          event_name: data.event_name || null,
+        };
+
+        if (userPreferences) {
+          // Update existing preferences
+          await supabase.from('user_utm_preferences')
+            .update(preferencesData)
+            .eq('id', userPreferences.id);
+        } else {
+          // Create new preferences
+          await supabase.from('user_utm_preferences').insert(preferencesData);
+        }
       }
       
       const { error } = await supabase.from('utm_links').insert({
@@ -280,6 +326,71 @@ export function UTMCreator() {
                   )}
                 />
               </div>
+
+              {/* Conditional fields based on campaign requirements */}
+              {(() => {
+                const selectedCampaign = campaigns.find(c => c.value === form.watch('utm_campaign'));
+                const requiresKeyword = selectedCampaign?.requires_keyword;
+                const requiresLocationEvent = selectedCampaign?.requires_location_event;
+
+                if (!requiresKeyword && !requiresLocationEvent) return null;
+
+                return (
+                  <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-dashed">
+                    <h4 className="text-sm font-semibold text-foreground">Required Campaign Details</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {requiresKeyword && (
+                        <FormField
+                          control={form.control}
+                          name="keyword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Keyword *</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Target keyword" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {requiresLocationEvent && (
+                        <>
+                          <FormField
+                            control={form.control}
+                            name="location"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Location *</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Event location" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="event_name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Event Name *</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Event name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Custom Parameters */}
