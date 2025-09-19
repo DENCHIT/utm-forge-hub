@@ -339,7 +339,7 @@ export function UTMCreator() {
                   <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-dashed">
                     <h4 className="text-sm font-semibold text-foreground">Required Campaign Details</h4>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {requiresKeyword && (
                         <FormField
                           control={form.control}
@@ -357,35 +357,19 @@ export function UTMCreator() {
                       )}
 
                       {requiresLocationEvent && (
-                        <>
-                          <FormField
-                            control={form.control}
-                            name="location"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Location *</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Event location" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={form.control}
-                            name="event_name"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Event Name *</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Event name" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </>
+                        <FormField
+                          control={form.control}
+                          name="location"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Location *</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Event location" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       )}
                     </div>
                   </div>

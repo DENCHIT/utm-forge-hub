@@ -42,6 +42,14 @@ export function buildUTMUrl(formData: UTMFormData, settings: UTMSettings): strin
       }
     });
     
+    // Add keyword and location parameters
+    if (formData.keyword) {
+      url.searchParams.set('keyword', normalizeValue(formData.keyword, settings));
+    }
+    if (formData.location) {
+      url.searchParams.set('location', normalizeValue(formData.location, settings));
+    }
+    
     // Add custom parameters
     formData.custom_params.forEach((param: CustomParam) => {
       if (param.key && param.value) {
