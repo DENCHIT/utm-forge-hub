@@ -103,6 +103,19 @@ export function UTMCreator() {
 
       const final_url = buildUTMUrl(data, settings);
       
+      // Check if campaign name is new and should be saved
+      const campaignExists = campaigns.some(c => c.value === data.utm_campaign);
+      if (!campaignExists && data.utm_campaign.trim()) {
+        // Save new campaign to utm_options
+        await supabase.from('utm_options').insert({
+          kind: 'campaign',
+          value: data.utm_campaign,
+          label: data.utm_campaign,
+          active: true,
+          display_order: campaigns.length,
+        });
+      }
+      
       const { error } = await supabase.from('utm_links').insert({
         link_name: data.link_name,
         destination_url: data.destination_url,
@@ -123,6 +136,9 @@ export function UTMCreator() {
         description: "UTM link saved successfully.",
       });
 
+      // Reload data to refresh campaigns list
+      await loadInitialData();
+      
       // Reset form
       form.reset();
       setFinalUrl("");
