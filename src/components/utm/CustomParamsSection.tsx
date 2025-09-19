@@ -28,51 +28,43 @@ export function CustomParamsSection({ customParams, onChange }: CustomParamsSect
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <Label className="text-base font-semibold">Custom Parameters</Label>
-        <Button type="button" variant="outline" size="sm" onClick={addParam}>
+        <h3 className="text-lg font-semibold">Custom Parameters</h3>
+        <Button type="button" variant="ghost" size="sm" onClick={addParam} className="text-primary">
           <Plus className="w-4 h-4 mr-1" />
-          Add Parameter
+          Add Custom Parameter
         </Button>
       </div>
 
       {customParams.length > 0 && (
         <div className="space-y-3">
           {customParams.map((param, index) => (
-            <div key={index} className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Label className="text-sm">Parameter Name</Label>
+            <div key={index} className="grid grid-cols-5 gap-3 items-center">
+              <div className="col-span-2">
                 <Input
-                  placeholder="e.g., custom_id"
+                  placeholder="Parameter key"
                   value={param.key}
                   onChange={(e) => updateParam(index, 'key', e.target.value)}
                 />
               </div>
-              <div className="flex-1">
-                <Label className="text-sm">Value</Label>
+              <div className="flex items-center justify-center">
+                <span className="text-muted-foreground">=</span>
+              </div>
+              <div className="col-span-2">
                 <Input
-                  placeholder="e.g., abc123"
+                  placeholder="Parameter value"
                   value={param.value}
                   onChange={(e) => updateParam(index, 'value', e.target.value)}
                 />
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => removeParam(index)}
-                className="mb-0"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
             </div>
           ))}
         </div>
       )}
 
       {customParams.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-          No custom parameters added yet. Click "Add Parameter" to get started.
-        </p>
+        <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg">
+          No custom parameters added yet.
+        </div>
       )}
     </div>
   );

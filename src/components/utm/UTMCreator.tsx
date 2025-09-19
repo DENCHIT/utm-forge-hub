@@ -151,16 +151,20 @@ export function UTMCreator() {
   };
 
   return (
-    <Card className="shadow-lg border-0 bg-gradient-card">
-      <CardHeader className="pb-6">
-        <CardTitle className="flex items-center gap-2 text-2xl">
-          <Link className="w-6 h-6 text-primary" />
-          Create UTM Link
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+    <div className="space-y-8">
+      {/* Page Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-foreground mb-2">Create UTM Link</h2>
+        <p className="text-muted-foreground">
+          Build trackable campaign URLs with proper UTM parameters for marketing attribution.
+        </p>
+      </div>
+
+      {/* Form */}
+      <div className="bg-card rounded-lg border p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* First Row - Link Name and Campaign Source */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
@@ -169,13 +173,23 @@ export function UTMCreator() {
                   <FormItem>
                     <FormLabel>Link Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Summer Campaign 2024" {...field} />
+                      <Input placeholder="e.g., Summer Campaign - Google Ads" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              <UTMSourceSelect
+                value={form.watch('utm_source')}
+                onChange={(value) => form.setValue('utm_source', value)}
+                sources={sources}
+                settings={settings}
+              />
+            </div>
+
+            {/* Second Row - Destination URL and Campaign Medium */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
                 name="destination_url"
@@ -183,20 +197,11 @@ export function UTMCreator() {
                   <FormItem>
                     <FormLabel>Destination URL *</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://example.com/page" {...field} />
+                      <Input placeholder="https://example.com/landing-page" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <UTMSourceSelect
-                value={form.watch('utm_source')}
-                onChange={(value) => form.setValue('utm_source', value)}
-                sources={sources}
-                settings={settings}
               />
 
               <UTMMediumSelect
@@ -206,19 +211,24 @@ export function UTMCreator() {
                 onAddMedium={(medium) => setMediums([...mediums, medium])}
                 settings={settings}
               />
+            </div>
 
+            {/* Campaign Details Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Campaign Details</h3>
+              
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between">
                   <FormLabel>Campaign Name (utm_campaign) *</FormLabel>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setIsEventModalOpen(true)}
-                    className="ml-auto"
+                    className="text-primary hover:text-primary/80"
                   >
                     <Calendar className="w-4 h-4 mr-1" />
-                    Use Event Template
+                    Use event template
                   </Button>
                 </div>
                 <UTMCampaignInput
@@ -228,57 +238,59 @@ export function UTMCreator() {
                   settings={settings}
                 />
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="utm_term"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Campaign Term (utm_term)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Optional keyword targeting" {...field} />
+                      </FormControl>
+                      {settings && form.watch('utm_term') && (
+                        <p className="text-sm text-muted-foreground">
+                          Will be sent as: {normalizeValue(form.watch('utm_term'), settings)}
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="utm_content"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Campaign Content (utm_content)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Optional content identifier" {...field} />
+                      </FormControl>
+                      {settings && form.watch('utm_content') && (
+                        <p className="text-sm text-muted-foreground">
+                          Will be sent as: {normalizeValue(form.watch('utm_content'), settings)}
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="utm_term"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Campaign Term (utm_term)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., keyword" {...field} />
-                    </FormControl>
-                    {settings && form.watch('utm_term') && (
-                      <p className="text-sm text-muted-foreground">
-                        Will be sent as: {normalizeValue(form.watch('utm_term'), settings)}
-                      </p>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="utm_content"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Campaign Content (utm_content)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., banner-ad" {...field} />
-                    </FormControl>
-                    {settings && form.watch('utm_content') && (
-                      <p className="text-sm text-muted-foreground">
-                        Will be sent as: {normalizeValue(form.watch('utm_content'), settings)}
-                      </p>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
+            {/* Custom Parameters */}
             <CustomParamsSection
               customParams={form.watch('custom_params')}
               onChange={(params) => form.setValue('custom_params', params)}
             />
 
+            {/* Generated URL Preview */}
             {finalUrl && (
-              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <div className="p-4 bg-muted/50 rounded-lg border">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-primary">Generated UTM Link</h3>
+                  <h3 className="font-semibold">Generated UTM Link</h3>
                   <Button type="button" variant="outline" size="sm" onClick={copyUrl}>
                     <Copy className="w-4 h-4 mr-1" />
                     Copy
@@ -293,16 +305,10 @@ export function UTMCreator() {
               </div>
             )}
 
-            <div className="flex gap-4">
-              <Button type="submit" className="flex-1" disabled={!finalUrl}>
-                Save UTM Link
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => form.reset()}
-              >
-                Clear Form
+            {/* Submit Button */}
+            <div className="flex justify-end">
+              <Button type="submit" disabled={!finalUrl} className="px-8">
+                Create Link
               </Button>
             </div>
           </form>
@@ -313,7 +319,7 @@ export function UTMCreator() {
           onClose={() => setIsEventModalOpen(false)}
           onSubmit={handleEventTemplate}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
