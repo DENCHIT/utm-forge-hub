@@ -12,8 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { UTMFormData, UTMSettings, UTMOption, UTMOptionRow, CustomParam } from "@/types/utm";
 
 interface UserUTMPreferences {
-  id: string;
-  user_id: string;
+  id?: string;
+  user_id?: string;
   keyword: string | null;
   location: string | null;
   event_name: string | null;
@@ -90,12 +90,9 @@ export function UTMCreator() {
 
   const loadInitialData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const [settingsRes, optionsRes, preferencesRes] = await Promise.all([
+      const [settingsRes, optionsRes] = await Promise.all([
         supabase.from('utm_settings').select('*').single(),
         supabase.from('utm_options').select('*').eq('active', true).order('display_order'),
-        user ? supabase.from('user_utm_preferences').select('*').eq('user_id', user.id).single() : Promise.resolve({ data: null, error: null }),
       ]);
 
       if (settingsRes.data) setSettings(settingsRes.data);
@@ -106,12 +103,14 @@ export function UTMCreator() {
         setCampaigns(options.filter(opt => opt.kind === 'campaign') as UTMOption[]);
       }
       
-      if (preferencesRes.data) {
-        setUserPreferences(preferencesRes.data);
-        // Pre-populate form with saved preferences
-        form.setValue('keyword', preferencesRes.data.keyword || '');
-        form.setValue('location', preferencesRes.data.location || '');
-        form.setValue('event_name', preferencesRes.data.event_name || '');
+      // Load preferences from localStorage
+      const savedPreferences = localStorage.getItem('utm-user-preferences');
+      if (savedPreferences) {
+        const preferences = JSON.parse(savedPreferences);
+        setUserPreferences(preferences);
+        form.setValue('keyword', preferences.keyword || '');
+        form.setValue('location', preferences.location || '');
+        form.setValue('event_name', preferences.event_name || '');
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -122,9 +121,6 @@ export function UTMCreator() {
     if (!settings) return;
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
       const final_url = buildUTMUrl(data, settings);
       
       // Check if campaign name is new and should be saved
@@ -140,24 +136,15 @@ export function UTMCreator() {
         });
       }
 
-      // Save or update user preferences if they entered keyword, location, or event data
+      // Save user preferences to localStorage
       if (data.keyword || data.location || data.event_name) {
         const preferencesData = {
-          user_id: user.id,
           keyword: data.keyword || null,
           location: data.location || null,
           event_name: data.event_name || null,
         };
-
-        if (userPreferences) {
-          // Update existing preferences
-          await supabase.from('user_utm_preferences')
-            .update(preferencesData)
-            .eq('id', userPreferences.id);
-        } else {
-          // Create new preferences
-          await supabase.from('user_utm_preferences').insert(preferencesData);
-        }
+        localStorage.setItem('utm-user-preferences', JSON.stringify(preferencesData));
+        setUserPreferences(preferencesData);
       }
       
       const { error } = await supabase.from('utm_links').insert({
@@ -170,7 +157,7 @@ export function UTMCreator() {
         utm_content: data.utm_content ? normalizeValue(data.utm_content, settings) : null,
         custom_params: JSON.stringify(data.custom_params),
         final_url,
-        user_id: user.id,
+        user_id: null,
       });
 
       if (error) throw error;

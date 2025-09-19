@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AuthWrapper } from "@/components/auth/AuthWrapper";
+import { PasswordWrapper } from "@/components/auth/PasswordWrapper";
 import { UTMCreator } from "@/components/utm/UTMCreator";
 import { SavedLinks } from "@/components/utm/SavedLinks";
 import { AdminPanel } from "@/components/utm/AdminPanel";
@@ -23,7 +23,7 @@ const Index = () => {
   };
 
   return (
-    <AuthWrapper>
+    <PasswordWrapper>
       <div className="min-h-screen bg-background">
         {/* Header Section */}
         <div className="border-b bg-background">
@@ -75,7 +75,7 @@ const Index = () => {
           {renderContent()}
         </main>
       </div>
-    </AuthWrapper>
+    </PasswordWrapper>
   );
 };
 

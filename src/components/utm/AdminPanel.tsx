@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UTMOption, UTMOptionRow, UTMSettings } from "@/types/utm";
-import { Settings, Database, Plus, Trash2, Edit, Save, Users } from "lucide-react";
+import { Settings, Database, Plus, Trash2, Edit, Save } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
@@ -21,8 +21,6 @@ export function AdminPanel() {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<Record<string, any>>({});
   const [newItem, setNewItem] = useState({ label: "", value: "" });
-  const [users, setUsers] = useState<any[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -225,75 +223,6 @@ export function AdminPanel() {
     return Math.max(0, ...items.map(item => item.display_order || 0)) + 1;
   };
 
-  const loadUsers = async () => {
-    setUsersLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      const response = await fetch('/functions/v1/admin-users', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-
-      const data = await response.json();
-      setUsers(data.users || []);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    } finally {
-      setUsersLoading(false);
-    }
-  };
-
-  const deleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      const response = await fetch('/functions/v1/admin-users', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete user');
-      }
-
-      // Remove user from local state
-      setUsers(users.filter(user => user.id !== userId));
-      
-      toast({
-        title: "Success!",
-        description: "User deleted successfully.",
-      });
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    }
-  };
-
   const renderOptionTable = (
     items: UTMOption[],
     kind: 'source' | 'medium' | 'campaign',
@@ -479,12 +408,11 @@ export function AdminPanel() {
       
       <CardContent>
         <Tabs defaultValue="settings" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="sources">Sources</TabsTrigger>
             <TabsTrigger value="mediums">Mediums</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
           </TabsList>
 
           <TabsContent value="settings" className="space-y-6">
@@ -579,72 +507,6 @@ export function AdminPanel() {
 
           <TabsContent value="campaigns" className="space-y-6">
             {renderOptionTable(campaigns, 'campaign', 'Campaign Suggestions')}
-          </TabsContent>
-
-          <TabsContent value="users" className="space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold mb-1 flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    User Management
-                  </h2>
-                  <p className="text-muted-foreground">View and manage all registered users.</p>
-                </div>
-                <Button onClick={loadUsers} disabled={usersLoading}>
-                  {usersLoading ? 'Loading...' : 'Refresh Users'}
-                </Button>
-              </div>
-
-              {users.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>EMAIL</TableHead>
-                      <TableHead>CREATED</TableHead>
-                      <TableHead>LAST SIGN IN</TableHead>
-                      <TableHead>STATUS</TableHead>
-                      <TableHead className="text-right">ACTIONS</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-medium">{user.email}</TableCell>
-                        <TableCell>
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          {user.last_sign_in_at 
-                            ? new Date(user.last_sign_in_at).toLocaleDateString()
-                            : 'Never'
-                          }
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.email_confirmed_at ? "default" : "secondary"}>
-                            {user.email_confirmed_at ? "Confirmed" : "Pending"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteUser(user.id)}
-                            className="w-8 h-8 p-0 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  {usersLoading ? 'Loading users...' : 'No users found. Click "Refresh Users" to load.'}
-                </div>
-              )}
-            </div>
           </TabsContent>
         </Tabs>
       </CardContent>
