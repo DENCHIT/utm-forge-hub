@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { UTMLink, CustomParam } from "@/types/utm";
 import { Copy, ExternalLink, Search, Download, Trash2, Edit } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -39,14 +39,9 @@ export function SavedLinks() {
 
   const loadLinks = async () => {
     try {
-      const { data, error } = await supabase
-        .from('utm_links')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const data = await apiClient.getLinks();
 
-      if (error) throw error;
-
-      // Parse custom_params from JSON string
+      // Parse custom_params from JSON string if needed
       const linksWithParsedParams = data.map(link => ({
         ...link,
         custom_params: typeof link.custom_params === 'string' 
@@ -80,12 +75,7 @@ export function SavedLinks() {
 
   const deleteLink = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('utm_links')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiClient.deleteLink(id);
 
       setLinks(links.filter(link => link.id !== id));
       toast({

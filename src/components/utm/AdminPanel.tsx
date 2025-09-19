@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { UTMOption, UTMOptionRow, UTMSettings } from "@/types/utm";
 import { Settings, Database, Plus, Trash2, Edit, Save } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,14 +29,14 @@ export function AdminPanel() {
 
   const loadData = async () => {
     try {
-      const [settingsRes, optionsRes] = await Promise.all([
-        supabase.from('utm_settings').select('*').single(),
-        supabase.from('utm_options').select('*').order('display_order'),
+      const [settingsData, optionsData] = await Promise.all([
+        apiClient.getSettings(),
+        apiClient.getOptions(),
       ]);
 
-      if (settingsRes.data) setSettings(settingsRes.data);
-      if (optionsRes.data) {
-        const options = optionsRes.data as UTMOptionRow[];
+      if (settingsData) setSettings(settingsData);
+      if (optionsData) {
+        const options = optionsData as UTMOptionRow[];
         setSources(options.filter(opt => opt.kind === 'source') as UTMOption[]);
         setMediums(options.filter(opt => opt.kind === 'medium') as UTMOption[]);
         setCampaigns(options.filter(opt => opt.kind === 'campaign') as UTMOption[]);
@@ -56,12 +56,7 @@ export function AdminPanel() {
     if (!settings) return;
 
     try {
-      const { error } = await supabase
-        .from('utm_settings')
-        .update({ [key]: value })
-        .eq('id', settings.id);
-
-      if (error) throw error;
+      await apiClient.updateSettings(settings.id, key, value);
 
       setSettings({ ...settings, [key]: value });
       toast({
@@ -81,24 +76,16 @@ export function AdminPanel() {
     if (!newItem.label.trim()) return;
 
     try {
-      const { data, error } = await supabase
-        .from('utm_options')
-        .insert({
-          kind,
-          label: newItem.label,
-          value: newItem.value || newItem.label.toLowerCase().replace(/\s+/g, '-'),
-          active: true,
-          display_order: getNextDisplayOrder(kind),
-        })
-        .select()
-        .single();
+      const response = await apiClient.addOption({
+        kind,
+        label: newItem.label,
+        value: newItem.value || newItem.label.toLowerCase().replace(/\s+/g, '-'),
+        display_order: getNextDisplayOrder(kind),
+      });
 
-      if (error) throw error;
-
-      const typedData = data as UTMOptionRow;
       const utmOption: UTMOption = {
-        ...typedData,
-        kind: typedData.kind as 'source' | 'medium' | 'campaign',
+        ...response.data,
+        kind: response.data.kind as 'source' | 'medium' | 'campaign',
       };
 
       // Update state based on kind
@@ -122,12 +109,7 @@ export function AdminPanel() {
 
   const deleteOption = async (id: string, kind: 'source' | 'medium' | 'campaign') => {
     try {
-      const { error } = await supabase
-        .from('utm_options')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiClient.deleteOption(id);
 
       // Update state based on kind
       if (kind === 'source') setSources(sources.filter(s => s.id !== id));
@@ -149,12 +131,7 @@ export function AdminPanel() {
 
   const toggleActive = async (id: string, active: boolean, kind: 'source' | 'medium' | 'campaign') => {
     try {
-      const { error } = await supabase
-        .from('utm_options')
-        .update({ active })
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiClient.updateOption(id, { active });
 
       // Update state based on kind
       const updateFn = (items: UTMOption[]) =>
@@ -191,18 +168,13 @@ export function AdminPanel() {
       const item = [...sources, ...mediums, ...campaigns].find(i => i.id === id);
       if (!item) return;
 
-      const { error } = await supabase
-        .from('utm_options')
-        .update({
-          label: item.label,
-          value: item.value,
-          active: item.active,
-          requires_keyword: item.requires_keyword || false,
-          requires_location_event: item.requires_location_event || false,
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await apiClient.updateOption(id, {
+        label: item.label,
+        value: item.value,
+        active: item.active,
+        requires_keyword: item.requires_keyword || false,
+        requires_location_event: item.requires_location_event || false,
+      });
 
       setEditingItem(null);
       toast({

@@ -8,7 +8,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { UTMFormData, UTMSettings, UTMOption, UTMOptionRow, CustomParam } from "@/types/utm";
 
 interface UserUTMPreferences {
@@ -90,14 +90,14 @@ export function UTMCreator() {
 
   const loadInitialData = async () => {
     try {
-      const [settingsRes, optionsRes] = await Promise.all([
-        supabase.from('utm_settings').select('*').single(),
-        supabase.from('utm_options').select('*').eq('active', true).order('display_order'),
+      const [settingsData, optionsData] = await Promise.all([
+        apiClient.getSettings(),
+        apiClient.getOptions(),
       ]);
 
-      if (settingsRes.data) setSettings(settingsRes.data);
-      if (optionsRes.data) {
-        const options = optionsRes.data as UTMOptionRow[];
+      if (settingsData) setSettings(settingsData);
+      if (optionsData) {
+        const options = optionsData as UTMOptionRow[];
         setSources(options.filter(opt => opt.kind === 'source') as UTMOption[]);
         setMediums(options.filter(opt => opt.kind === 'medium') as UTMOption[]);
         setCampaigns(options.filter(opt => opt.kind === 'campaign') as UTMOption[]);
@@ -127,12 +127,9 @@ export function UTMCreator() {
       const campaignExists = campaigns.some(c => c.value === data.utm_campaign);
       if (!campaignExists && data.utm_campaign.trim()) {
         // Save new campaign to utm_options
-        await supabase.from('utm_options').insert({
-          kind: 'campaign',
+        await apiClient.insertCampaign({
           value: data.utm_campaign,
           label: data.utm_campaign,
-          active: true,
-          display_order: campaigns.length,
         });
       }
 
@@ -147,7 +144,7 @@ export function UTMCreator() {
         setUserPreferences(preferencesData);
       }
       
-      const { error } = await supabase.from('utm_links').insert({
+      await apiClient.insertLink({
         link_name: data.link_name,
         destination_url: data.destination_url,
         utm_source: normalizeValue(data.utm_source, settings),
@@ -155,12 +152,10 @@ export function UTMCreator() {
         utm_campaign: normalizeValue(data.utm_campaign, settings),
         utm_term: data.utm_term ? normalizeValue(data.utm_term, settings) : null,
         utm_content: data.utm_content ? normalizeValue(data.utm_content, settings) : null,
-        custom_params: JSON.stringify(data.custom_params),
+        custom_params: data.custom_params,
         final_url,
         user_id: null,
       });
-
-      if (error) throw error;
 
       toast({
         title: "Success!",
