@@ -28,16 +28,12 @@ export function EventTemplateModal({ isOpen, onClose, onSubmit }: EventTemplateM
 
   const handleSubmit = () => {
     const template = previewTemplate();
-    console.log("Generated template:", template);
     if (template) {
-      console.log("Calling onSubmit with template:", template);
       onSubmit(template);
       // Reset form
       setEventName("");
       setLocation("");
       setDate(undefined);
-    } else {
-      console.log("No template generated - missing fields");
     }
   };
 
