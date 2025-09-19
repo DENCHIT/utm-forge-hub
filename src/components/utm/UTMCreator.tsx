@@ -243,7 +243,7 @@ export function UTMCreator() {
                     className="text-primary hover:text-primary/80"
                   >
                     <Calendar className="w-4 h-4 mr-1" />
-                    Use event template
+                    Campaign name helper
                   </Button>
                 </div>
                 <UTMCampaignInput
