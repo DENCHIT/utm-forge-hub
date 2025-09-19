@@ -11,11 +11,10 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UTMFormData, UTMSettings, UTMOption, UTMOptionRow, CustomParam } from "@/types/utm";
 import { buildUTMUrl, validateUrl, normalizeValue } from "@/lib/utm-utils";
-import { Copy, Link, Plus, Trash2, Calendar, MapPin } from "lucide-react";
+import { Copy, Link, Plus, Trash2 } from "lucide-react";
 import { UTMSourceSelect } from "./UTMSourceSelect";
 import { UTMMediumSelect } from "./UTMMediumSelect";
 import { UTMCampaignInput } from "./UTMCampaignInput";
-import { EventTemplateModal } from "./EventTemplateModal";
 import { CustomParamsSection } from "./CustomParamsSection";
 
 const formSchema = z.object({
@@ -38,7 +37,6 @@ export function UTMCreator() {
   const [mediums, setMediums] = useState<UTMOption[]>([]);
   const [campaigns, setCampaigns] = useState<UTMOption[]>([]);
   const [finalUrl, setFinalUrl] = useState("");
-  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<UTMFormData>({
@@ -161,15 +159,6 @@ export function UTMCreator() {
     }
   };
 
-  const handleEventTemplate = (template: string) => {
-    form.setValue('utm_campaign', template, { 
-      shouldValidate: true, 
-      shouldDirty: true, 
-      shouldTouch: true 
-    });
-    setIsEventModalOpen(false);
-  };
-
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -237,19 +226,7 @@ export function UTMCreator() {
               <h3 className="text-lg font-semibold">Campaign Details</h3>
               
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <FormLabel>Campaign Name (utm_campaign) *</FormLabel>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEventModalOpen(true)}
-                    className="text-primary hover:text-primary/80"
-                  >
-                    <Calendar className="w-4 h-4 mr-1" />
-                    Campaign name helper
-                  </Button>
-                </div>
+                <FormLabel>Campaign Name (utm_campaign) *</FormLabel>
                 <FormField
                   control={form.control}
                   name="utm_campaign"
@@ -338,12 +315,6 @@ export function UTMCreator() {
             </div>
           </form>
         </Form>
-
-        <EventTemplateModal
-          isOpen={isEventModalOpen}
-          onClose={() => setIsEventModalOpen(false)}
-          onSubmit={handleEventTemplate}
-        />
       </div>
     </div>
   );
