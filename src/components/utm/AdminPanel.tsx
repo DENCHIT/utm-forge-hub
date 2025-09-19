@@ -282,50 +282,84 @@ export function AdminPanel() {
           </TabsList>
 
           <TabsContent value="settings" className="space-y-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">UTM Link Generation Settings</h3>
-              
-              {settings && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="normalize-values">Normalize Values</Label>
-                      <p className="text-sm text-muted-foreground">Apply all normalization rules below</p>
-                    </div>
-                    <Switch
-                      id="normalize-values"
-                      checked={settings.normalize_values}
-                      onCheckedChange={(checked) => updateSettings('normalize_values', checked)}
-                    />
-                  </div>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold mb-1">Settings</h2>
+                <p className="text-muted-foreground">Configure global application settings and URL generation rules.</p>
+              </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="lowercase-values">Lowercase Values</Label>
-                      <p className="text-sm text-muted-foreground">Convert all UTM values to lowercase</p>
+              {/* URL Generation Settings */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Settings className="w-5 h-5" />
+                  <h3 className="text-lg font-semibold">URL Generation Settings</h3>
+                </div>
+                
+                {settings && (
+                  <div className="space-y-6">
+                    <div className="flex items-start gap-3">
+                      <Switch
+                        id="normalize-values"
+                        checked={settings.normalize_values}
+                        onCheckedChange={(checked) => updateSettings('normalize_values', checked)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="normalize-values" className="text-sm font-medium">
+                          Normalize parameter values
+                        </Label>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Automatically convert values to lowercase and URL-safe format
+                        </p>
+                      </div>
                     </div>
-                    <Switch
-                      id="lowercase-values"
-                      checked={settings.lowercase_values}
-                      onCheckedChange={(checked) => updateSettings('lowercase_values', checked)}
-                      disabled={!settings.normalize_values}
-                    />
-                  </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="replace-spaces">Replace Spaces with Dashes</Label>
-                      <p className="text-sm text-muted-foreground">Replace spaces with dashes in UTM values</p>
+                    <div className="flex items-start gap-3">
+                      <Switch
+                        id="replace-spaces"
+                        checked={settings.replace_spaces}
+                        onCheckedChange={(checked) => updateSettings('replace_spaces', checked)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="replace-spaces" className="text-sm font-medium">
+                          Replace spaces with dashes
+                        </Label>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Convert spaces to dashes (-) in parameter values for better URL formatting
+                        </p>
+                      </div>
                     </div>
-                    <Switch
-                      id="replace-spaces"
-                      checked={settings.replace_spaces}
-                      onCheckedChange={(checked) => updateSettings('replace_spaces', checked)}
-                      disabled={!settings.normalize_values}
-                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Data Management */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Database className="w-5 h-5" />
+                  <h3 className="text-lg font-semibold">Data Management</h3>
+                </div>
+
+                <div className="bg-warning/10 border border-warning/20 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-5 h-5 bg-warning rounded-sm flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Database className="w-3 h-3 text-warning-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-warning-foreground mb-1">Data Storage</h4>
+                      <p className="text-sm text-warning-foreground/80 mb-3">
+                        All data is stored securely in the cloud. To backup your data:
+                      </p>
+                      <ul className="text-sm text-warning-foreground/80 space-y-1 ml-4">
+                        <li className="list-disc">Export your links as CSV from the Saved Links tab</li>
+                        <li className="list-disc">Note your admin configurations for manual restoration</li>
+                        <li className="list-disc">Consider saving important links externally</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </TabsContent>
 
