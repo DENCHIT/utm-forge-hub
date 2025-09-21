@@ -1,53 +1,60 @@
-name: Deploy to Hostinger
-
+name: Build & publish dist to deploy
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+permissions:
+  contents: write
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
-      - name: Setup Node.js
+      - name: Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      # IMPORTANT: use 'npm install', not 'npm ci' (your lockfile is out of sync)
+      - name: Install
+        run: npm install --no-audit --no-fund
 
-      - name: Build application
+      - name: Build
         run: npm run build
 
-      - name: Prepare upload directory
+      # Ensure SPA fallback exists in the built output
+      - name: Add .htaccess for SPA
         run: |
-          rm -rf upload && mkdir -p upload
-          # built frontend
-          cp -r dist/* upload/
-          # copy SPA .htaccess if present
-          if [ -f public/.htaccess ]; then cp public/.htaccess upload/.htaccess; fi
-          # PHP API
-          mkdir -p upload/api
-          cp -r api/*.php upload/api/ 2>/dev/null || true
-          # never ship the example config
-          rm -f upload/api/config.example.php
+          cat > dist/.htaccess <<'EOF'
+          <IfModule mod_rewrite.c>
+            RewriteEngine On
+            RewriteBase /
+            RewriteCond %{REQUEST_FILENAME} !-f
+            RewriteCond %{REQUEST_FILENAME} !-d
+            RewriteRule . /index.html [L]
+          </IfModule>
+          EOF
 
-      - name: Deploy to Hostinger via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      # (Optional) favicon – avoids 404, safe to skip if you already have one
+      - name: Ensure favicon
+        run: |
+          if [ ! -f dist/favicon.ico ]; then
+            printf '\x00' > dist/favicon.ico
+          fi
+
+      # Publish the compiled 'dist/' to branch 'deploy'
+      - name: Publish dist to deploy
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: upload/
-          server-dir: public_html/
-          dangerous-clean-slate: true
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.env
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: deploy
+          force_orphan: true
+
+      # Quick debug output in the Actions log
+      - name: List dist
+        run: ls -la dist && sed -n '1,40p' dist/index.html
