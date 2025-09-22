@@ -28,58 +28,22 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Bundle SPA + API and write .htaccess files
+      # Bundle SPA + API; copy .htaccess files if present
       - name: Prepare deploy bundle
         run: |
           set -e
           rm -rf out && mkdir -p out
           # copy SPA build
           cp -r dist/* out/
-
           # copy API if present
-          if [ -d api ]; then
-            mkdir -p out/api
-            cp -r api/* out/api/
-          fi
-
-          # root .htaccess: SPA fallback, but DO NOT rewrite /api/*
-          cat > out/.htaccess <<'EOF'
-          <IfModule mod_rewrite.c>
-            RewriteEngine On
-            RewriteBase /
-
-            # Let real files/dirs through
-            RewriteCond %{REQUEST_FILENAME} -f [OR]
-            RewriteCond %{REQUEST_FILENAME} -d
-            RewriteRule ^ - [L]
-
-            # Do NOT rewrite API routes
-            RewriteCond %{REQUEST_URI} ^/(api)/ [NC]
-            RewriteRule ^ - [L]
-
-            # SPA fallback
-            RewriteRule . /index.html [L]
-          </IfModule>
-
-          AddType application/json .json
-          EOF
-
-          # api/.htaccess (belt & braces)
-          if [ -d out/api ]; then
-            cat > out/api/.htaccess <<'EOF'
-            <IfModule mod_rewrite.c>
-              RewriteEngine Off
-            </IfModule>
-            <IfModule mod_headers.c>
-              Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
-            </IfModule>
-            EOF
-          fi
-
-          # ensure a favicon so browsers don't 404
+          if [ -d api ]; then mkdir -p out/api && cp -r api/* out/api/; fi
+          # copy .htaccess files if present
+          if [ -f .htaccess ]; then cp .htaccess out/.htaccess; fi
+          if [ -f api/.htaccess ]; then mkdir -p out/api && cp api/.htaccess out/api/.htaccess; fi
+          # tiny favicon to avoid 404s if you don't have one
           [ -f out/favicon.ico ] || printf '\x00' > out/favicon.ico
 
-      # Publish the combined bundle to the 'deploy' branch (no orphaning)
+      # Publish to 'deploy' without orphaning (so Hostinger can pull cleanly)
       - name: Publish bundle to deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
