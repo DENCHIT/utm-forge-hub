@@ -42,7 +42,7 @@ export function SavedLinks() {
       const data = await apiClient.getLinks();
 
       // Parse custom_params from JSON string if needed
-      const linksWithParsedParams = data.map(link => ({
+      const linksWithParsedParams = (data || []).map(link => ({
         ...link,
         custom_params: typeof link.custom_params === 'string' 
           ? JSON.parse(link.custom_params) 
@@ -51,6 +51,7 @@ export function SavedLinks() {
 
       setLinks(linksWithParsedParams);
     } catch (error: any) {
+      console.error('Error loading data:', error);
       toast({
         variant: "destructive",
         title: "Error",

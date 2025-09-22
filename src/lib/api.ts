@@ -30,7 +30,8 @@ class ApiClient {
   }
 
   async getLinks() {
-    return this.request<any[]>('/list_links.php');
+    const response = await this.request<{ok: boolean, links: any[], note?: string}>('/list_links.php');
+    return response.links || [];
   }
 
   async insertLink(linkData: any) {
