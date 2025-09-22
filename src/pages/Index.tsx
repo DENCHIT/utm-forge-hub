@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PasswordWrapper } from "@/components/auth/PasswordWrapper";
 import { UTMCreator } from "@/components/utm/UTMCreator";
 import { SavedLinks } from "@/components/utm/SavedLinks";
-import { AuthenticatedAdminPanel } from "@/components/utm/AdminPanel";
+import { AdminPanel } from "@/components/utm/AdminPanel";
 import { Button } from "@/components/ui/button";
 import { Link, History, Settings } from "lucide-react";
 
@@ -16,7 +16,7 @@ const Index = () => {
       case 'saved':
         return <SavedLinks />;
       case 'admin':
-        return <AuthenticatedAdminPanel />;
+        return <AdminPanel />;
       default:
         return <UTMCreator />;
     }

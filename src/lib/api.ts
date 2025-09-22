@@ -26,9 +26,12 @@ class ApiClient {
   }
 
   async insertLink(linkData: any) {
+    // Remove user_id since we're using public access
+    const { user_id, ...dataWithoutUserId } = linkData;
+    
     const { data, error } = await supabase
       .from('utm_links')
-      .insert(linkData)
+      .insert(dataWithoutUserId)
       .select()
       .single();
     
