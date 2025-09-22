@@ -1,54 +1,60 @@
-name: Deploy to Hostinger
+name: Build & publish SPA + API
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Node.js
+      - name: Use Node 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: Install
         run: npm install --no-audit --no-fund
 
-      - name: Build application
+      - name: Build
         run: npm run build
 
-      - name: Prepare upload directory
+      # Create an 'out' bundle that contains:
+      # - built SPA from dist/
+      # - your api/ folder
+      # - the root .htaccess
+      - name: Prepare deploy bundle
         run: |
-          rm -rf upload && mkdir -p upload
-          # Copy built frontend
-          cp -r dist/* upload/
-          # Copy root .htaccess to upload directory
-          cp .htaccess upload/.htaccess
-          # Copy PHP API folder
-          mkdir -p upload/api
-          cp -r api/*.php upload/api/
-          cp api/.htaccess upload/api/.htaccess
-          # Never ship the example config
-          rm -f upload/api/config.example.php
+          rm -rf out && mkdir -p out
+          # copy SPA build
+          cp -r dist/* out/
+          # copy API if present
+          if [ -d api ]; then
+            mkdir -p out/api
+            cp -r api/* out/api/
+          fi
+          # copy root .htaccess if present
+          if [ -f .htaccess ]; then
+            cp .htaccess out/.htaccess
+          fi
+          # ensure a favicon to avoid 404s
+          [ -f out/favicon.ico ] || printf '\x00' > out/favicon.ico
 
-      - name: Deploy to Hostinger via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      # Publish the combined bundle to the 'deploy' branch
+      - name: Publish bundle to deploy
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: upload/
-          server-dir: public_html/
-          dangerous-clean-slate: true
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.env
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
+          publish_branch: deploy
+          force_orphan: true
+
