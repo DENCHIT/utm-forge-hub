@@ -454,10 +454,10 @@ export function AdminPanel() {
                     </div>
                     <div className="flex-1">
                       <h4 className="font-medium text-warning-foreground mb-1">Data Storage</h4>
-                      <p className="text-sm text-warning-foreground/80 mb-3">
+                      <p className="text-sm text-muted-foreground mb-3">
                         All data is stored securely in the cloud. To backup your data:
                       </p>
-                      <ul className="text-sm text-warning-foreground/80 space-y-1 ml-4">
+                      <ul className="text-sm text-muted-foreground space-y-1 ml-4">
                         <li className="list-disc">Export your links as CSV from the Saved Links tab</li>
                         <li className="list-disc">Note your admin configurations for manual restoration</li>
                         <li className="list-disc">Consider saving important links externally</li>
