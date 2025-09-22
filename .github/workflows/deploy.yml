@@ -28,23 +28,18 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Bundle SPA + API; copy .htaccess files if present
+      # Bundle SPA + API; copy .htaccess files from repo
       - name: Prepare deploy bundle
         run: |
           set -e
           rm -rf out && mkdir -p out
-          # copy SPA build
           cp -r dist/* out/
-          # copy API if present
           if [ -d api ]; then mkdir -p out/api && cp -r api/* out/api/; fi
-          # copy .htaccess files if present
           if [ -f .htaccess ]; then cp .htaccess out/.htaccess; fi
           if [ -f api/.htaccess ]; then mkdir -p out/api && cp api/.htaccess out/api/.htaccess; fi
-          # tiny favicon to avoid 404s if you don't have one
           [ -f out/favicon.ico ] || printf '\x00' > out/favicon.ico
 
-      # Publish to 'deploy' without orphaning (so Hostinger can pull cleanly)
-      - name: Publish bundle to deploy
+      - name: Publish bundle to deploy (no orphaning)
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
