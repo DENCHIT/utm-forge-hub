@@ -11,6 +11,15 @@ import { UTMOption, UTMOptionRow, UTMSettings } from "@/types/utm";
 import { Settings, Database, Plus, Trash2, Edit, Save } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { AuthWrapper } from "@/components/auth/AuthWrapper";
+
+export function AuthenticatedAdminPanel() {
+  return (
+    <AuthWrapper>
+      <AdminPanel />
+    </AuthWrapper>
+  );
+}
 
 export function AdminPanel() {
   const [settings, setSettings] = useState<UTMSettings | null>(null);

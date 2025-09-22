@@ -1,6 +1,6 @@
-// API client for PHP backend
-
-const API_BASE_URL = '/api';
+// Supabase API client
+import { supabase } from "@/integrations/supabase/client";
+import { UTMSettings, UTMOption } from "@/types/utm";
 
 interface ApiResponse<T> {
   data?: T;
@@ -10,83 +10,134 @@ interface ApiResponse<T> {
 }
 
 class ApiClient {
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
-  }
-
   async getLinks() {
-    const response = await this.request<{ok: boolean, links: any[], note?: string}>('/list_links.php');
-    return response.links || [];
+    try {
+      const { data, error } = await supabase
+        .from('utm_links')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching links:', error);
+      return [];
+    }
   }
 
   async insertLink(linkData: any) {
-    return this.request<ApiResponse<any>>('/insert_link.php', {
-      method: 'POST',
-      body: JSON.stringify(linkData),
-    });
+    const { data, error } = await supabase
+      .from('utm_links')
+      .insert(linkData)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return { data };
   }
 
   async deleteLink(id: string) {
-    return this.request<ApiResponse<any>>(`/delete_link.php/${id}`, {
-      method: 'DELETE',
-    });
+    const { error } = await supabase
+      .from('utm_links')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return { success: true };
   }
 
-  async getOptions() {
-    return this.request<any[]>('/get_options.php');
+  async getOptions(): Promise<UTMOption[]> {
+    const { data, error } = await supabase
+      .from('utm_options')
+      .select('*')
+      .order('display_order', { ascending: true });
+    
+    if (error) throw error;
+    return (data || []) as UTMOption[];
   }
 
-  async getSettings() {
-    return this.request<any>('/get_settings.php');
+  async getSettings(): Promise<UTMSettings | null> {
+    const { data, error } = await supabase
+      .from('utm_settings')
+      .select('*')
+      .maybeSingle();
+    
+    if (error) throw error;
+    
+    // If no settings exist, create default ones
+    if (!data) {
+      const defaultSettings = {
+        normalize_values: true,
+        lowercase_values: true,
+        replace_spaces: true,
+      };
+      
+      const { data: newData, error: insertError } = await supabase
+        .from('utm_settings')
+        .insert(defaultSettings)
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      return newData;
+    }
+    
+    return data;
   }
 
   async insertCampaign(campaignData: { value: string; label: string }) {
-    return this.request<ApiResponse<any>>('/insert_campaign.php', {
-      method: 'POST',
-      body: JSON.stringify(campaignData),
+    return this.addOption({
+      kind: 'campaign',
+      label: campaignData.label,
+      value: campaignData.value,
+      display_order: 0,
+      active: true,
     });
   }
 
   async updateSettings(id: string, field: string, value: boolean) {
-    return this.request<ApiResponse<any>>('/update_settings.php', {
-      method: 'POST',
-      body: JSON.stringify({ id, field, value }),
-    });
+    const { data, error } = await supabase
+      .from('utm_settings')
+      .update({ [field]: value })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return { data };
   }
 
   async addOption(optionData: any) {
-    return this.request<ApiResponse<any>>('/add_option.php', {
-      method: 'POST',
-      body: JSON.stringify(optionData),
-    });
+    const { data, error } = await supabase
+      .from('utm_options')
+      .insert(optionData)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return { data };
   }
 
   async deleteOption(id: string) {
-    return this.request<ApiResponse<any>>(`/delete_option.php/${id}`, {
-      method: 'DELETE',
-    });
+    const { error } = await supabase
+      .from('utm_options')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return { success: true };
   }
 
   async updateOption(id: string, updateData: any) {
-    return this.request<ApiResponse<any>>('/update_option.php', {
-      method: 'POST',
-      body: JSON.stringify({ id, ...updateData }),
-    });
+    const { data, error } = await supabase
+      .from('utm_options')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return { data };
   }
 }
 
