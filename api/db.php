@@ -1,5 +1,12 @@
 <?php
-require_once 'config.php';
+$configPath = __DIR__ . '/config.php';
+if (!file_exists($configPath)) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database configuration missing']);
+    exit;
+}
+
+require_once $configPath;
 
 class Database {
     private $pdo = null;

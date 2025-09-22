@@ -1,4 +1,15 @@
 <?php
+// api/get_options.php
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+
+$configPath = __DIR__ . '/config.php';
+if (!file_exists($configPath)) {
+  // Return empty options array if config.php is missing
+  echo json_encode([]);
+  exit;
+}
+
 require_once 'db.php';
 
 try {
