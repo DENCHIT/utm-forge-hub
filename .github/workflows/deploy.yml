@@ -28,33 +28,62 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Create an 'out' bundle that contains:
-      # - built SPA from dist/
-      # - your api/ folder
-      # - the root .htaccess
+      # Bundle SPA + API and write .htaccess files
       - name: Prepare deploy bundle
         run: |
+          set -e
           rm -rf out && mkdir -p out
           # copy SPA build
           cp -r dist/* out/
+
           # copy API if present
           if [ -d api ]; then
             mkdir -p out/api
             cp -r api/* out/api/
           fi
-          # copy root .htaccess if present
-          if [ -f .htaccess ]; then
-            cp .htaccess out/.htaccess
+
+          # root .htaccess: SPA fallback, but DO NOT rewrite /api/*
+          cat > out/.htaccess <<'EOF'
+          <IfModule mod_rewrite.c>
+            RewriteEngine On
+            RewriteBase /
+
+            # Let real files/dirs through
+            RewriteCond %{REQUEST_FILENAME} -f [OR]
+            RewriteCond %{REQUEST_FILENAME} -d
+            RewriteRule ^ - [L]
+
+            # Do NOT rewrite API routes
+            RewriteCond %{REQUEST_URI} ^/(api)/ [NC]
+            RewriteRule ^ - [L]
+
+            # SPA fallback
+            RewriteRule . /index.html [L]
+          </IfModule>
+
+          AddType application/json .json
+          EOF
+
+          # api/.htaccess (belt & braces)
+          if [ -d out/api ]; then
+            cat > out/api/.htaccess <<'EOF'
+            <IfModule mod_rewrite.c>
+              RewriteEngine Off
+            </IfModule>
+            <IfModule mod_headers.c>
+              Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+            </IfModule>
+            EOF
           fi
-          # ensure a favicon to avoid 404s
+
+          # ensure a favicon so browsers don't 404
           [ -f out/favicon.ico ] || printf '\x00' > out/favicon.ico
 
-      # Publish the combined bundle to the 'deploy' branch
+      # Publish the combined bundle to the 'deploy' branch (no orphaning)
       - name: Publish bundle to deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./out
           publish_branch: deploy
-          force_orphan: true
-
+          commit_message: "deploy: ${{ github.sha }}"
