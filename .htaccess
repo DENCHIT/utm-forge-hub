@@ -1,0 +1,19 @@
+# .htaccess (root)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Let real files/dirs through
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Do NOT rewrite API
+  RewriteCond %{REQUEST_URI} ^/(api)/ [NC]
+  RewriteRule ^ - [L]
+
+  # SPA fallback
+  RewriteRule . /index.html [L]
+</IfModule>
+
+AddType application/json .json
