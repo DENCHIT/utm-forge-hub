@@ -5,3 +5,8 @@
 <IfModule mod_headers.c>
   Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
 </IfModule>
+
+# Hard-block direct access to secret file
+<Files "config.php">
+  Require all denied
+</Files>
