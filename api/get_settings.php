@@ -1,4 +1,21 @@
 <?php
+// api/get_settings.php
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+
+$configPath = __DIR__ . '/config.php';
+if (!file_exists($configPath)) {
+  // Return default settings if config.php is missing
+  echo json_encode([
+    'id' => 'default',
+    'normalize_values' => true,
+    'lowercase_values' => true,
+    'replace_spaces' => true,
+    'updated_at' => date('c')
+  ]);
+  exit;
+}
+
 require_once 'db.php';
 
 try {
