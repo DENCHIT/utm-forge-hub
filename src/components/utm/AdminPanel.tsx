@@ -11,6 +11,7 @@ import { UTMOption, UTMOptionRow, UTMSettings } from "@/types/utm";
 import { Settings, Database, Plus, Trash2, Edit, Save } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export function AdminPanel() {
   const [settings, setSettings] = useState<UTMSettings | null>(null);
@@ -21,6 +22,8 @@ export function AdminPanel() {
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<Record<string, any>>({});
   const [newItem, setNewItem] = useState({ label: "", value: "" });
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [pendingAddKind, setPendingAddKind] = useState<'source' | 'medium' | 'campaign' | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -72,6 +75,19 @@ export function AdminPanel() {
     }
   };
 
+  const handleAddClick = (kind: 'source' | 'medium' | 'campaign') => {
+    if (!newItem.label.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter a label for the new option.",
+      });
+      return;
+    }
+    setPendingAddKind(kind);
+    setShowAddDialog(true);
+  };
+
   const addOption = async (kind: 'source' | 'medium' | 'campaign') => {
     if (!newItem.label.trim()) return;
 
@@ -94,6 +110,8 @@ export function AdminPanel() {
       else setCampaigns([...campaigns, utmOption]);
 
       setNewItem({ label: "", value: "" });
+      setShowAddDialog(false);
+      setPendingAddKind(null);
       toast({
         title: "Success!",
         description: `${kind} option added successfully.`,
@@ -216,7 +234,7 @@ export function AdminPanel() {
             onChange={(e) => setNewItem({ ...newItem, value: e.target.value })}
             className="w-32"
           />
-          <Button onClick={() => addOption(kind)} size="sm">
+          <Button onClick={() => handleAddClick(kind)} size="sm">
             <Plus className="w-4 h-4 mr-1" />
             Add New
           </Button>
@@ -370,8 +388,35 @@ export function AdminPanel() {
   }
 
   return (
-    <Card className="shadow-lg border-0 bg-gradient-card">
-      <CardHeader className="pb-6">
+    <>
+      <AlertDialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add New UTM Option</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please make sure this new option has been added to HubSpot to ensure it captures the new UTM value.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowAddDialog(false);
+              setPendingAddKind(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingAddKind) {
+                addOption(pendingAddKind);
+              }
+            }}>
+              Confirm & Add
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Card className="shadow-lg border-0 bg-gradient-card">
+        <CardHeader className="pb-6">
         <CardTitle className="flex items-center gap-2 text-2xl">
           <Settings className="w-6 h-6 text-primary" />
           Admin Panel
@@ -481,7 +526,8 @@ export function AdminPanel() {
             {renderOptionTable(campaigns, 'campaign', 'Campaign Suggestions')}
           </TabsContent>
         </Tabs>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </>
   );
 }
