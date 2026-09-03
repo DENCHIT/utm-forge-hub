@@ -7,7 +7,14 @@ export interface RankedSubmission extends Submission {
 }
 
 export interface InteractionData {
+  /** Approved only. Everything that renders anywhere reads this. */
   submissions: Submission[];
+  /**
+   * Held back from the stage: unscreened or flagged. Only ever populated for
+   * staff - RLS gives the audience approved rows and nothing else - so the
+   * remote can show a review queue and no other screen can leak it.
+   */
+  queue: Submission[];
   /** Submissions with their upvote counts, most-supported first. */
   ranked: RankedSubmission[];
   clusters: Cluster[];
@@ -35,7 +42,9 @@ export interface InteractionData {
  * deck can split it across as many screens as the speaker wants.
  */
 export function useInteraction(slideId: string | undefined): InteractionData {
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  // Holds every row the caller is allowed to see: approved for the audience,
+  // all statuses for staff. Split below rather than fetched twice.
+  const [rows, setSubmissions] = useState<Submission[]>([]);
   const [clusters, setClusters] = useState<Cluster[]>([]);
   const [votes, setVotes] = useState<Vote[]>([]);
   const [submissionVotes, setSubmissionVotes] = useState<SubmissionVote[]>([]);
@@ -121,6 +130,15 @@ export function useInteraction(slideId: string | undefined): InteractionData {
     };
   }, [slideId, refresh]);
 
+  // The only place status is enforced client-side. Anything that renders reads
+  // `submissions`; the queue is deliberately a separate name so a new screen
+  // cannot show unscreened text by reaching for the obvious variable.
+  const submissions = useMemo(() => rows.filter((r) => r.status === "approved"), [rows]);
+  const queue = useMemo(
+    () => rows.filter((r) => r.status === "pending" || r.status === "flagged"),
+    [rows],
+  );
+
   const tally = useMemo(() => {
     const counts = new Map<string, number>();
     for (const vote of votes) {
@@ -158,6 +176,7 @@ export function useInteraction(slideId: string | undefined): InteractionData {
 
   return {
     submissions,
+    queue,
     ranked,
     clusters: sortedClusters,
     votes,

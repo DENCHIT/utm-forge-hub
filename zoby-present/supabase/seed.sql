@@ -67,6 +67,7 @@ begin
       'We ship, then never hear anything back'
     ),
     'allowUpvotes', true,
+    'moderation', 'ai',
     'notifyConsentText',
       'Email me when there is an answer to my problem. My address is used for ' ||
       'that and nothing else, and I can unsubscribe from any email.'

@@ -92,6 +92,12 @@ export interface Slide {
 
 export type SubmissionSource = "audience" | "seed" | "presenter";
 
+/**
+ * `pending` never reaches the stage. `flagged` was blocked by the screener and
+ * is waiting for a human to overrule. `hidden` was pulled by one.
+ */
+export type SubmissionStatus = "pending" | "approved" | "flagged" | "hidden";
+
 export interface Submission {
   id: string;
   slide_id: string;
@@ -102,6 +108,8 @@ export interface Submission {
   /** Where it came from. Anything but `audience` is labelled on the stage. */
   source: SubmissionSource;
   source_label: string | null;
+  status: SubmissionStatus;
+  moderation_reason: string | null;
 }
 
 /** An upvote on somebody else's submission. */
@@ -231,6 +239,15 @@ export interface CollectContent {
    * evidence the consent later. Keep it specific and honest.
    */
   notifyConsentText?: string;
+  /**
+   * How submissions get onto the wall.
+   *
+   * `ai` (the default) screens each one and holds anything it objects to.
+   * `manual` holds everything for you to release by hand. `off` puts them
+   * straight up — only for a trusted room, or when the network is down and an
+   * empty wall is the worse outcome.
+   */
+  moderation?: "ai" | "manual" | "off";
 }
 
 export interface ClusterContent {

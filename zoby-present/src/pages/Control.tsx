@@ -15,6 +15,7 @@ import {
 import { goToSlide, setSlidePhase, useLiveSession } from "@/hooks/useLiveSession";
 import { useInteraction } from "@/hooks/useInteraction";
 import { useConnection, type ConnectionState } from "@/hooks/useConnection";
+import { ModerationQueue } from "@/components/ModerationQueue";
 import { usePresence } from "@/hooks/usePresence";
 import { supabase } from "@/lib/supabase";
 import { clusterLocally, saveLocalClusters } from "@/lib/localClustering";
@@ -40,7 +41,7 @@ export default function Control() {
     return typeof source === "string" ? source : undefined;
   }, [currentSlide]);
 
-  const { submissions, ranked, clusters, upvotes, submissionVotes, totalVotes } =
+  const { submissions, queue, ranked, clusters, upvotes, submissionVotes, totalVotes } =
     useInteraction(sourceSlideId);
   const [clustering, setClustering] = useState(false);
 
@@ -175,6 +176,8 @@ export default function Control() {
 
       {isInteractive && sourceSlideId && (
         <>
+          <ModerationQueue slideId={sourceSlideId} queue={queue} approved={submissions} />
+
           <PresenterCapture slideId={sourceSlideId} />
 
           <section className="card space-y-3 p-4">

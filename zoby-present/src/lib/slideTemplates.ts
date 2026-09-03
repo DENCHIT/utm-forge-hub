@@ -75,6 +75,9 @@ export const SLIDE_TEMPLATES: Record<SlideType, SlideContent> = {
       "We ship, then never hear anything back",
     ],
     allowUpvotes: true,
+    // "ai" holds each submission until it has been screened. Use "off" only
+    // for a trusted room — it puts unscreened text on the big screen.
+    moderation: "ai",
   },
   cluster: {
     heading: "Here is what you all said",

@@ -392,17 +392,30 @@ function SubmitPanel({
 
     setSending(true);
     setError(null);
-    const { error: insertError } = await supabase
+    const { data: created, error: insertError } = await supabase
       .from("submissions")
-      .insert({ slide_id: slideId, participant_id: participantId, body: trimmed, source: "audience" });
-    setSending(false);
+      .insert({ slide_id: slideId, participant_id: participantId, body: trimmed, source: "audience" })
+      .select("id")
+      .single();
 
     if (insertError) {
+      setSending(false);
       setError(insertError.message);
       return;
     }
+
     setSent((current) => [trimmed, ...current]);
     setBody("");
+
+    // Kick off screening from here so the row clears in the second between
+    // tapping send and looking up at the wall. If this call never lands, the
+    // row stays pending and the presenter's remote sweeps it up - the wall
+    // never shows anything unscreened either way.
+    await supabase.functions
+      .invoke("screen-submissions", { body: { submissionId: created.id } })
+      .catch(() => undefined);
+
+    setSending(false);
   };
 
   return (

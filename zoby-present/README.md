@@ -53,7 +53,11 @@ select id, '<your auth.users id>', 'owner' from public.orgs where slug = 'zoby';
 ```bash
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 supabase functions deploy cluster-problems
+supabase functions deploy screen-submissions
 ```
+
+Both must be deployed. Without `screen-submissions` nothing clears moderation
+and the wall stays empty — see the Moderation section.
 
 The key stays server-side. The function checks the caller is a signed-in member
 of the event's organisation before it will run.
@@ -170,6 +174,49 @@ their own organisation's content; the audience gets read-only access to a live
 event and may only write where the current phase invites it (submissions during
 `collecting`, votes during `voting`). Brand tokens live on `orgs.brand` and
 `events.theme` and are painted onto CSS variables at runtime.
+
+## Moderation
+
+Anything typed on a phone lands on a large screen behind you, and you are facing
+away from it. So nothing reaches the wall unscreened.
+
+**How it works.** Submissions arrive `pending` and are invisible to everyone but
+you. The phone fires the screener the moment it submits, so a normal problem
+clears in the second between tapping send and looking up. Haiku does the
+screening — this sits in a sub-second latency budget and does not need a bigger
+model to meet it. Anything it objects to becomes `flagged` and waits for you.
+
+**It fails closed.** If the screener cannot be reached, submissions stay pending
+and off the wall. They appear in the remote's queue where you can release them
+by hand, one tap each, with the text in front of you.
+
+**The sweeper.** If a phone drops off mid-request its submission would sit
+pending forever, so the remote sweeps any backlog itself. It runs only while
+there is one, and backs off for six seconds between attempts.
+
+**The panic button.** *Pull something off the wall* on the remote lists
+everything currently up; one tap hides it and deletes its upvotes so the counts
+stay honest. There is a *Clear the whole wall* underneath it. No confirmation
+dialogue on the single-item hide — on stage there is no time to read one, and
+putting something back is free.
+
+**What gets blocked.** Slurs, harassment, sexual content, anything aimed at a
+named individual, contact details and spam, and text trying to hijack the screen
+by issuing instructions. Blunt, cynical and sweary-but-not-abusive descriptions
+of work problems are explicitly allowed — you are asking people what frustrates
+them, and sanitising that ruins the exercise. When the screener is unsure it
+allows, because you review anything it blocks and over-blocking real answers is
+its own failure.
+
+**Modes.** Per collect slide, `moderation`:
+
+- `ai` (default) — screen everything, hold what it objects to.
+- `manual` — hold everything for you to release by hand.
+- `off` — straight to the wall. Only for a trusted room, or when the network is
+  down and an empty wall is the worse outcome. It is a decision you make, never
+  a silent fallback.
+
+Presenter-entered and seeded problems skip screening — they came from you.
 
 ## When the room is quiet
 
