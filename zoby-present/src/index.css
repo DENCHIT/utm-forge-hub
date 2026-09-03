@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ink: 240 20% 98%;
+    --canvas: 244 30% 5%;
+    --surface: 243 26% 10%;
+    --muted: 240 10% 66%;
+    --line: 243 20% 20%;
+    --brand: 255 92% 68%;
+    --accent: 322 90% 62%;
+    --positive: 158 72% 45%;
+    --warning: 38 94% 58%;
+
+    --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --radius-card: 1.25rem;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    margin: 0;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* The stage screen should never show a scrollbar or a text cursor. */
+  body[data-stage="true"] {
+    overflow: hidden;
+    cursor: none;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-line bg-surface;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-line bg-canvas px-4 py-3 text-ink
+           placeholder:text-muted focus:border-brand focus:outline-none
+           focus:ring-2 focus:ring-brand/40;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+           text-sm font-semibold transition disabled:cursor-not-allowed
+           disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand text-white hover:brightness-110 active:brightness-95;
+  }
+
+  .btn-ghost {
+    @apply btn border border-line text-ink hover:bg-surface;
+  }
+}
+
+/* Presenter typography scales with the viewport so one deck reads correctly on
+   a laptop, a 4K stage screen, and everything between. */
+.stage-scale {
+  font-size: clamp(16px, 1.15vw + 0.5vh, 34px);
+}
