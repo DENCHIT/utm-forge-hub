@@ -5,6 +5,10 @@ import { participantToken } from "@/lib/utils";
 /**
  * Gets or creates this device's anonymous participant row for an event.
  * No sign-in: scanning the QR code is the whole onboarding.
+ *
+ * Goes through the `claim_participant` function rather than reading the table.
+ * `participants` holds each device's identity token, so it is staff-only - a
+ * phone that could read it could vote as somebody else.
  */
 export function useParticipant(eventId: string | undefined) {
   const [participantId, setParticipantId] = useState<string | null>(null);
@@ -15,30 +19,14 @@ export function useParticipant(eventId: string | undefined) {
     let cancelled = false;
 
     (async () => {
-      const token = participantToken(eventId);
-
-      const { data: existing } = await supabase
-        .from("participants")
-        .select("id")
-        .eq("event_id", eventId)
-        .eq("token", token)
-        .maybeSingle();
+      const { data, error: rpcError } = await supabase.rpc("claim_participant", {
+        p_event_id: eventId,
+        p_token: participantToken(eventId),
+      });
 
       if (cancelled) return;
-      if (existing) {
-        setParticipantId(existing.id);
-        return;
-      }
-
-      const { data: created, error: insertError } = await supabase
-        .from("participants")
-        .insert({ event_id: eventId, token })
-        .select("id")
-        .single();
-
-      if (cancelled) return;
-      if (insertError) setError(insertError.message);
-      else setParticipantId(created.id);
+      if (rpcError) setError(rpcError.message);
+      else setParticipantId(data as string);
     })();
 
     return () => {

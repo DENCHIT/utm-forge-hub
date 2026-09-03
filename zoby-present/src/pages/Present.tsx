@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { SlideRenderer } from "@/components/slides/SlideRenderer";
+import { StageClock } from "@/components/StageClock";
+import { useSessionClock } from "@/hooks/useSessionClock";
 import { goToSlide, useLiveSession } from "@/hooks/useLiveSession";
 import { applyTheme, resetTheme } from "@/lib/theme";
 import type { BulletsContent } from "@/lib/types";
@@ -18,6 +20,8 @@ export default function Present() {
     useLiveSession(sessionId);
   const [revealed, setRevealed] = useState(1);
   const [blank, setBlank] = useState(false);
+  const [showClock, setShowClock] = useState(true);
+  const { startedAt, reset: resetClock } = useSessionClock(sessionId);
 
   useEffect(() => {
     document.body.dataset.stage = "true";
@@ -71,11 +75,15 @@ export default function Present() {
         else void document.documentElement.requestFullscreen();
       } else if (e.key === "." || e.key === "b") {
         setBlank((b) => !b);
+      } else if (e.key === "t" || e.key === "T") {
+        setShowClock((c) => !c);
+      } else if (e.key === "r" || e.key === "R") {
+        resetClock();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [advance]);
+  }, [advance, resetClock]);
 
   if (loading) return <StageMessage>Loading the deck&hellip;</StageMessage>;
   if (error) return <StageMessage>{error}</StageMessage>;
@@ -99,10 +107,14 @@ export default function Present() {
 
       {blank && <div className="absolute inset-0 z-50 bg-black" />}
 
-      {/* Deliberately faint: orientation for the speaker, invisible from row 20. */}
-      <div className="pointer-events-none absolute bottom-3 right-4 text-xs text-muted/40">
-        {currentIndex + 1} / {slides.length}
-      </div>
+      {showClock && (
+        <StageClock
+          startedAt={startedAt}
+          targetMinutes={session.target_minutes}
+          slideIndex={currentIndex}
+          slideCount={slides.length}
+        />
+      )}
     </div>
   );
 }

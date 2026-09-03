@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowBigUp, Check, Loader2, PartyPopper, Send } from "lucide-react";
+import { ArrowBigUp, Check, Loader2, Mail, PartyPopper, Send } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useLiveSession } from "@/hooks/useLiveSession";
 import { useInteraction, type RankedSubmission } from "@/hooks/useInteraction";
 import { useParticipant } from "@/hooks/useParticipant";
 import { usePresence } from "@/hooks/usePresence";
 import { applyTheme, resetTheme } from "@/lib/theme";
-import { cn, pluralise } from "@/lib/utils";
+import { cn, participantToken, pluralise } from "@/lib/utils";
 import type { Cluster, CollectContent, EventRecord } from "@/lib/types";
 
 /**
@@ -129,12 +129,14 @@ function JoinedSession({
         >
           {phase === "collecting" && sourceSlideId ? (
             <SubmitPanel
+              eventId={eventId}
               slideId={sourceSlideId}
               participantId={participantId}
               content={collectContent}
               others={ranked.filter((s) => s.participant_id !== participantId)}
               myUpvotes={submissionVotes}
               upvotesAllowed={upvotesAllowed}
+              hasSubmitted={mine.length > 0}
             />
           ) : upvotesAllowed && sourceSlideId ? (
             // Grouping and shortlist are dead air on a phone otherwise. Keep
@@ -153,13 +155,102 @@ function JoinedSession({
               chosenClusterId={myVote?.cluster_id ?? null}
             />
           ) : phase === "results" ? (
-            <ResultsPanel clusters={clusters} tally={tally} totalVotes={totalVotes} />
+            <div className="space-y-5">
+              <ResultsPanel clusters={clusters} tally={tally} totalVotes={totalVotes} />
+              {/* Last call, and the best moment to ask: they have just watched
+                  the room engage with the thing they typed. */}
+              {mine.length > 0 && (
+                <NotifyMe eventId={eventId} prompt={collectContent?.notifyConsentText} />
+              )}
+            </div>
           ) : (
             <Waiting />
           )}
         </motion.div>
       </AnimatePresence>
     </div>
+  );
+}
+
+/**
+ * Email capture. Shown once someone has actually put a problem in, because
+ * "tell me when you cover mine" only means anything after there is a "mine".
+ *
+ * Writes through the `leave_contact` function - the audience has no rights on
+ * the contacts table at all, so the anon key can never read the list back.
+ */
+function NotifyMe({ eventId, prompt }: { eventId: string; prompt?: string }) {
+  const consentText =
+    prompt ??
+    "Email me once there's an answer to my problem. My address is used for that " +
+      "and nothing else, and I can unsubscribe from any email.";
+
+  const storageKey = `zoby-present:contact:${eventId}`;
+  const [email, setEmail] = useState("");
+  const [saved, setSaved] = useState(() => Boolean(localStorage.getItem(storageKey)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    const { error: rpcError } = await supabase.rpc("leave_contact", {
+      p_event_id: eventId,
+      p_token: participantToken(eventId),
+      p_email: email.trim(),
+      p_consent_text: consentText,
+    });
+
+    setSaving(false);
+    if (rpcError) {
+      setError(rpcError.message);
+      return;
+    }
+    // Remembered on the device only: the phone cannot read the list back, so
+    // this is what stops it asking the same person twice.
+    localStorage.setItem(storageKey, "1");
+    setSaved(true);
+  };
+
+  if (saved) {
+    return (
+      <p className="card flex items-center gap-2 p-3 text-sm text-muted">
+        <Check size={16} className="shrink-0 text-positive" />
+        You&rsquo;re on the list. We&rsquo;ll email you when yours is covered.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={save} className="card space-y-3 p-4">
+      <div className="flex items-start gap-2">
+        <Mail size={16} className="mt-0.5 shrink-0 text-brand" />
+        <p className="text-sm font-semibold">Want the answer to yours?</p>
+      </div>
+
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@company.com"
+        className="field text-base"
+      />
+
+      {/* The consent is the label, not a pre-ticked box buried underneath. The
+          exact wording is stored on the row, so you can show what someone
+          agreed to months later. */}
+      <p className="text-xs leading-relaxed text-muted">{consentText}</p>
+
+      {error && <p className="text-sm text-warning">{error}</p>}
+
+      <button type="submit" disabled={saving} className="btn-primary w-full">
+        {saving ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+        Notify me
+      </button>
+    </form>
   );
 }
 
@@ -268,19 +359,23 @@ function UpvoteList({
 }
 
 function SubmitPanel({
+  eventId,
   slideId,
   participantId,
   content,
   others,
   myUpvotes,
   upvotesAllowed,
+  hasSubmitted,
 }: {
+  eventId: string;
   slideId: string;
   participantId: string | null;
   content?: CollectContent;
   others: RankedSubmission[];
   myUpvotes: { submission_id: string; participant_id: string }[];
   upvotesAllowed: boolean;
+  hasSubmitted: boolean;
 }) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -365,6 +460,12 @@ function SubmitPanel({
           </div>
         )}
       </form>
+
+      {/* Only once they have skin in the game. Asking for an address before
+          somebody has submitted anything is just a lead form. */}
+      {(hasSubmitted || sent.length > 0) && (
+        <NotifyMe eventId={eventId} prompt={content?.notifyConsentText} />
+      )}
 
       {upvotesAllowed && (
         <UpvoteList

@@ -46,6 +46,38 @@ export interface SessionRecord {
   position: number;
   status: "draft" | "live" | "complete";
   current_slide_id: string | null;
+  /** Slot length, driving the stage clock's colour. */
+  target_minutes: number | null;
+}
+
+/** One person who asked to hear back when their problem gets covered. */
+export interface Contact {
+  id: string;
+  event_id: string;
+  participant_id: string | null;
+  email: string;
+  consent_at: string;
+  notified_at: string | null;
+}
+
+/** A row of the staff-only follow-up view. */
+export interface SubmissionExportRow {
+  event_id: string;
+  session_id: string;
+  session_title: string;
+  slide_id: string;
+  submission_id: string;
+  body: string;
+  source: SubmissionSource;
+  source_label: string | null;
+  created_at: string;
+  cluster_id: string | null;
+  cluster_label: string | null;
+  is_finalist: boolean | null;
+  cluster_rank: number | null;
+  upvotes: number;
+  email: string | null;
+  notified_at: string | null;
 }
 
 export interface Slide {
@@ -193,6 +225,12 @@ export interface CollectContent {
   examples?: string[];
   /** Let the audience upvote each other's problems. On by default. */
   allowUpvotes?: boolean;
+  /**
+   * Exactly what someone agrees to when they leave an address. Shown as the
+   * label on the field and stored verbatim on the contact row, so you can
+   * evidence the consent later. Keep it specific and honest.
+   */
+  notifyConsentText?: string;
 }
 
 export interface ClusterContent {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowBigUp,
@@ -27,7 +27,7 @@ import type { CollectContent, Slide, SlidePhase } from "@/lib/types";
  */
 export default function Control() {
   const { sessionId } = useParams();
-  const { session, slides, currentSlide, currentIndex, loading } = useLiveSession(sessionId);
+  const { session, event, slides, currentSlide, currentIndex, loading } = useLiveSession(sessionId);
   const connection = useConnection();
   const connected = usePresence(sessionId, false);
 
@@ -128,7 +128,20 @@ export default function Control() {
           <p className="text-xs uppercase tracking-[0.24em] text-muted">Now controlling</p>
           <h1 className="font-display text-2xl font-bold">{session.title}</h1>
         </div>
-        <ConnectionBadge state={connection} />
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <ConnectionBadge state={connection} />
+          {/* Session two is answering problems from the stage: this is the
+              script, searchable, open in another tab. */}
+          {event && (
+            <Link
+              to={`/events/${event.id}/submissions`}
+              target="_blank"
+              className="text-xs text-muted underline hover:text-ink"
+            >
+              All problems
+            </Link>
+          )}
+        </div>
       </header>
 
       {/* Live counts. The numbers the speaker actually needs mid-flow. */}

@@ -30,14 +30,14 @@ begin
   values (v_org, 'ZOBY on stage', 'ZOBY26', false, now())
   returning id into v_event;
 
-  insert into public.sessions (event_id, title, subtitle, position, status) values
-    (v_event, 'Session 1 — The problem',  'Where the room actually hurts', 0, 'draft')
+  insert into public.sessions (event_id, title, subtitle, position, status, target_minutes) values
+    (v_event, 'Session 1 — The problem',  'Where the room actually hurts', 0, 'draft', 20)
     returning id into v_s1;
-  insert into public.sessions (event_id, title, subtitle, position, status) values
-    (v_event, 'Session 2 — The evidence', 'What the study found',          1, 'draft')
+  insert into public.sessions (event_id, title, subtitle, position, status, target_minutes) values
+    (v_event, 'Session 2 — The evidence', 'What the study found',          1, 'draft', 20)
     returning id into v_s2;
-  insert into public.sessions (event_id, title, subtitle, position, status) values
-    (v_event, 'Session 3 — The answer',   'What we do on Monday',          2, 'draft')
+  insert into public.sessions (event_id, title, subtitle, position, status, target_minutes) values
+    (v_event, 'Session 3 — The answer',   'What we do on Monday',          2, 'draft', 15)
     returning id into v_s3;
 
   -- ---------------------------------------------------------- session 1
@@ -66,7 +66,10 @@ begin
       'Everything takes three approvals',
       'We ship, then never hear anything back'
     ),
-    'allowUpvotes', true
+    'allowUpvotes', true,
+    'notifyConsentText',
+      'Email me when there is an answer to my problem. My address is used for ' ||
+      'that and nothing else, and I can unsubscribe from any email.'
   ), 'Open submissions from the remote. Wait for the count to plateau — usually 90 seconds.')
   returning id into v_collect;
 

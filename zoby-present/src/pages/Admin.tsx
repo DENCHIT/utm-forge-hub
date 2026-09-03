@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowDown, ArrowUp, Monitor, Plus, Smartphone, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ListChecks, Monitor, Plus, Smartphone, Trash2 } from "lucide-react";
 import { supabase, publicAppUrl } from "@/lib/supabase";
 import { SlideRenderer } from "@/components/slides/SlideRenderer";
 import { SLIDE_TEMPLATES } from "@/lib/slideTemplates";
@@ -74,6 +74,19 @@ export default function Admin() {
     void loadSessions();
   };
 
+  const setSessionMinutes = async (session: SessionRecord, raw: string) => {
+    const minutes = raw.trim() === "" ? null : Number(raw);
+    if (minutes !== null && (!Number.isFinite(minutes) || minutes <= 0)) return;
+    if (minutes === session.target_minutes) return;
+
+    const { error } = await supabase
+      .from("sessions")
+      .update({ target_minutes: minutes })
+      .eq("id", session.id);
+    if (error) return toast.error(error.message);
+    void loadSessions();
+  };
+
   const addSlide = async (type: SlideType) => {
     if (!activeSessionId) return;
     const { error } = await supabase.from("slides").insert({
@@ -128,13 +141,18 @@ export default function Admin() {
             </span>
           </p>
         </div>
-        <button
-          type="button"
-          onClick={toggleLive}
-          className={event.is_live ? "btn-ghost border-positive text-positive" : "btn-primary"}
-        >
-          {event.is_live ? "Close the doors" : "Open the doors"}
-        </button>
+        <div className="flex gap-2">
+          <Link to={`/events/${event.id}/submissions`} className="btn-ghost">
+            <ListChecks size={15} /> All problems
+          </Link>
+          <button
+            type="button"
+            onClick={toggleLive}
+            className={event.is_live ? "btn-ghost border-positive text-positive" : "btn-primary"}
+          >
+            {event.is_live ? "Close the doors" : "Open the doors"}
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-wrap gap-2 border-b border-line p-4">
@@ -155,6 +173,18 @@ export default function Admin() {
               <p className="text-xs text-muted">{session.status}</p>
             </button>
             <div className="flex gap-1">
+              {/* Slot length. Drives the stage clock: plain, then amber inside
+                  the last five minutes, then red once you are over. */}
+              <input
+                type="number"
+                min={1}
+                max={480}
+                defaultValue={session.target_minutes ?? ""}
+                onBlur={(e) => setSessionMinutes(session, e.target.value)}
+                placeholder="mins"
+                title="Slot length in minutes"
+                className="w-16 rounded-lg border border-line bg-canvas px-2 py-1 text-xs"
+              />
               <button
                 type="button"
                 onClick={() => setSessionStatus(session, session.status === "live" ? "draft" : "live")}

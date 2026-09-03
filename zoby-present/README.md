@@ -25,6 +25,7 @@ same deployment can run someone else's event under their brand.
 | `/control/:sessionId` | Your phone | Next/back, speaker notes, phase control, the AI grouping button, live counts. |
 | `/join/:code` | The audience | Where the QR code lands. Follows the stage automatically. |
 | `/events/:eventId` | You, beforehand | Deck builder. |
+| `/events/:eventId/submissions` | You, during and after | Every problem, searchable, with emails and CSV export. |
 
 The room's position is `sessions.current_slide_id`. Every device watches it over
 Supabase Realtime, so a phone that joins late lands on the right screen straight
@@ -80,7 +81,65 @@ locally; set it to your real domain in production.
 5. Hit **Group problems with AI**, then **Show top 3**.
 6. **Open voting**, then **Reveal winner**.
 
-Stage keys: `→`/`space` advance, `←` back, `F` fullscreen, `.` blank the screen.
+Stage keys: `→`/`space` advance, `←` back, `F` fullscreen, `.` blank the screen,
+`T` toggle the clock, `R` restart the clock.
+
+## The stage clock
+
+Bottom-left of the projector: wall clock, time remaining, and slide position.
+Low contrast by design — readable from the confidence monitor, invisible from
+row 20. It gets louder only when it matters: amber inside the last five minutes,
+red and bold once you are over.
+
+Set each session's slot length in minutes in the deck builder (the small field
+next to *Go live*). With no slot length it just counts up.
+
+The start time lives in the projector's `localStorage`, not the database, so a
+browser reload mid-talk comes back showing the same elapsed time with no round
+trip. `R` restarts it if you need to.
+
+## Every problem, and following up
+
+`/events/:eventId/submissions` — linked from the deck builder and from the
+remote — is every submission across every session, searchable, sorted by
+backing.
+
+Two jobs:
+
+- **On the day.** Open it in a second tab as the answering script for a
+  question-and-answer session. Search it, work down by upvotes, see which theme
+  each problem landed in.
+- **Afterwards.** Filter and export CSV: problem, session, theme, whether it
+  made the top three, upvote count, source, and the address of whoever asked to
+  hear the answer. That is the build list for producing an asset per problem.
+
+Mark people as emailed as you go, and the *Not emailed yet* filter becomes your
+send queue.
+
+### Email capture
+
+Anyone who has submitted a problem is offered a field: leave an address and get
+told when their problem is answered. It appears after they submit, not before —
+asking first is just a lead form — and again on the results screen, which is the
+strongest moment to ask.
+
+How it is stored:
+
+- Addresses live in `contacts`, which the audience has **no** rights on at all.
+  Phones write through a `leave_contact` function and can never read the table,
+  so the anon key is not a mailing-list export.
+- The consent wording is the field's label, not a pre-ticked box, and the exact
+  text shown is stored on each row (`consent_text`) so you can evidence months
+  later what somebody agreed to. Set it per collect slide with
+  `notifyConsentText`.
+- `participants` is staff-only. It holds each device's identity token, and
+  anyone who could read it could vote as somebody else. Phones claim their row
+  through `claim_participant`.
+
+You are collecting personal data at an event, so the usual applies: a privacy
+notice people can reach, a real unsubscribe in every send, and only using the
+addresses for what the consent text says. The schema supports that; the
+promise is yours to keep.
 
 ## Building a deck
 

@@ -10,6 +10,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Present = lazy(() => import("./pages/Present"));
 const Control = lazy(() => import("./pages/Control"));
+const Submissions = lazy(() => import("./pages/Submissions"));
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,8 @@ export default function App() {
             <Route path="/join/:code" element={<Join />} />
             <Route path="/" element={<Home />} />
             <Route path="/events/:eventId" element={<Admin />} />
+            {/* Every problem, for answering in session two and exporting after. */}
+            <Route path="/events/:eventId/submissions" element={<Submissions />} />
             {/* The stage screen. */}
             <Route path="/present/:sessionId" element={<Present />} />
             {/* The presenter's remote. */}
