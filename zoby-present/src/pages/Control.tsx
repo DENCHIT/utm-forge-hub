@@ -2,16 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
+  ArrowBigUp,
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Plus,
   Sparkles,
   Users,
   Vote as VoteIcon,
+  WifiOff,
 } from "lucide-react";
 import { goToSlide, setSlidePhase, useLiveSession } from "@/hooks/useLiveSession";
 import { useInteraction } from "@/hooks/useInteraction";
+import { useConnection, type ConnectionState } from "@/hooks/useConnection";
+import { usePresence } from "@/hooks/usePresence";
 import { supabase } from "@/lib/supabase";
+import { clusterLocally, saveLocalClusters } from "@/lib/localClustering";
 import { cn, pluralise } from "@/lib/utils";
 import type { CollectContent, Slide, SlidePhase } from "@/lib/types";
 
@@ -22,6 +28,8 @@ import type { CollectContent, Slide, SlidePhase } from "@/lib/types";
 export default function Control() {
   const { sessionId } = useParams();
   const { session, slides, currentSlide, currentIndex, loading } = useLiveSession(sessionId);
+  const connection = useConnection();
+  const connected = usePresence(sessionId, false);
 
   // The interaction the current slide belongs to, so counts and the AI button
   // stay available across the collect/cluster/vote/results run.
@@ -32,7 +40,8 @@ export default function Control() {
     return typeof source === "string" ? source : undefined;
   }, [currentSlide]);
 
-  const { submissions, clusters, totalVotes } = useInteraction(sourceSlideId);
+  const { submissions, ranked, clusters, upvotes, submissionVotes, totalVotes } =
+    useInteraction(sourceSlideId);
   const [clustering, setClustering] = useState(false);
 
   // Keep the remote awake; a locked phone mid-session is a bad moment.
@@ -82,14 +91,31 @@ export default function Control() {
       body: { slideId: sourceSlideId, finalistCount },
     });
 
-    setClustering(false);
+    const failure = (data as { error?: string })?.error ?? error?.message;
 
-    if (error || (data as { error?: string })?.error) {
-      const message = (data as { error?: string })?.error ?? error?.message ?? "Clustering failed.";
-      toast.error(message);
+    if (!failure) {
+      setClustering(false);
+      toast.success(
+        `Grouped into ${pluralise((data as { clusters: unknown[] }).clusters.length, "theme")}`,
+      );
       return;
     }
-    toast.success(`Grouped into ${pluralise((data as { clusters: unknown[] }).clusters.length, "theme")}`);
+
+    // The AI could not be reached. Group on-device rather than leaving the
+    // stage on a spinner - it is a worse grouping, and the toast says so, but
+    // the session keeps moving.
+    try {
+      const groups = clusterLocally(submissions, upvotes, finalistCount);
+      const count = await saveLocalClusters(sourceSlideId, groups);
+      toast.warning(`AI unreachable — grouped on this device into ${pluralise(count, "theme")}.`, {
+        description: "Rougher than the AI grouping. Tap re-group to retry once you have signal.",
+        duration: 10000,
+      });
+    } catch {
+      toast.error(failure);
+    } finally {
+      setClustering(false);
+    }
   };
 
   const isInteractive =
@@ -97,17 +123,27 @@ export default function Control() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 p-4 pb-32">
-      <header>
-        <p className="text-xs uppercase tracking-[0.24em] text-muted">Now controlling</p>
-        <h1 className="font-display text-2xl font-bold">{session.title}</h1>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-muted">Now controlling</p>
+          <h1 className="font-display text-2xl font-bold">{session.title}</h1>
+        </div>
+        <ConnectionBadge state={connection} />
       </header>
 
-      {/* Live counts. The two numbers the speaker actually needs mid-flow. */}
+      {/* Live counts. The numbers the speaker actually needs mid-flow. */}
       {isInteractive && (
-        <div className="grid grid-cols-2 gap-3">
-          <Stat icon={<Users size={16} />} label="Problems in" value={submissions.length} />
-          <Stat icon={<VoteIcon size={16} />} label="Votes cast" value={totalVotes} />
+        <div className="grid grid-cols-3 gap-3">
+          <Stat icon={<Users size={16} />} label="In" value={submissions.length} />
+          <Stat icon={<ArrowBigUp size={16} />} label="Upvotes" value={submissionVotes.length} />
+          <Stat icon={<VoteIcon size={16} />} label="Votes" value={totalVotes} />
         </div>
+      )}
+
+      {isInteractive && connected > 0 && (
+        <p className="text-center text-xs text-muted">
+          {pluralise(connected, "phone")} connected
+        </p>
       )}
 
       {currentSlide && (
@@ -124,49 +160,61 @@ export default function Control() {
         </section>
       )}
 
-      {isInteractive && (
-        <section className="card space-y-3 p-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-muted">Run the interaction</p>
-          <div className="grid grid-cols-2 gap-2">
-            <PhaseButton
-              current={currentSlide?.phase}
-              phase="collecting"
-              onClick={setPhase}
-              label="Open submissions"
-            />
-            <PhaseButton
-              current={currentSlide?.phase}
-              phase="shortlist"
-              onClick={setPhase}
-              label="Show top 3"
-            />
-            <PhaseButton
-              current={currentSlide?.phase}
-              phase="voting"
-              onClick={setPhase}
-              label="Open voting"
-            />
-            <PhaseButton
-              current={currentSlide?.phase}
-              phase="results"
-              onClick={setPhase}
-              label="Reveal winner"
-            />
-          </div>
+      {isInteractive && sourceSlideId && (
+        <>
+          <PresenterCapture slideId={sourceSlideId} />
 
-          <button
-            type="button"
-            onClick={runClustering}
-            disabled={clustering || submissions.length === 0}
-            className="btn-primary w-full"
-          >
-            {clustering ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-            {clusters.length ? "Re-group problems" : "Group problems with AI"}
-          </button>
-          {submissions.length === 0 && (
-            <p className="text-center text-xs text-muted">Nothing submitted yet.</p>
+          <section className="card space-y-3 p-4">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted">Run the interaction</p>
+            <div className="grid grid-cols-2 gap-2">
+              <PhaseButton current={currentSlide?.phase} phase="collecting" onClick={setPhase} label="Open submissions" />
+              <PhaseButton current={currentSlide?.phase} phase="shortlist" onClick={setPhase} label="Show top 3" />
+              <PhaseButton current={currentSlide?.phase} phase="voting" onClick={setPhase} label="Open voting" />
+              <PhaseButton current={currentSlide?.phase} phase="results" onClick={setPhase} label="Reveal winner" />
+            </div>
+
+            <button
+              type="button"
+              onClick={runClustering}
+              disabled={clustering || submissions.length === 0}
+              className="btn-primary w-full"
+            >
+              {clustering ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              {clusters.length ? "Re-group problems" : "Group problems with AI"}
+            </button>
+
+            {/* An honest read on whether there is enough to group. Better to
+                know now than when the shortlist appears. */}
+            {submissions.length === 0 ? (
+              <p className="text-center text-xs text-muted">
+                Nothing in yet. Take one from the floor and type it in above.
+              </p>
+            ) : submissions.length < 6 ? (
+              <p className="text-center text-xs text-warning">
+                Only {submissions.length} in. Give it longer, or ask the room to back the ones
+                already up.
+              </p>
+            ) : null}
+          </section>
+
+          {/* Top problems by backing, so you can read the room out loud
+              without looking at the screen behind you. */}
+          {ranked.length > 0 && (
+            <section className="card p-4">
+              <p className="mb-2 text-xs uppercase tracking-[0.24em] text-muted">Most backed</p>
+              <ol className="space-y-2">
+                {ranked.slice(0, 5).map((submission) => (
+                  <li key={submission.id} className="flex items-start gap-2 text-sm">
+                    <span className="w-8 shrink-0 font-bold tabular-nums text-brand">
+                      +{submission.upvotes}
+                    </span>
+                    <span className="min-w-0 flex-1">{submission.body}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
           )}
-        </section>
+        </>
       )}
 
       <section className="card divide-y divide-line">
@@ -201,6 +249,88 @@ export default function Control() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Takes a problem shouted from the floor. Marked `presenter` so the stage
+ * labels it "From the floor" rather than passing it off as a submission.
+ */
+function PresenterCapture({ slideId }: { slideId: string }) {
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const add = async () => {
+    const trimmed = body.trim();
+    if (trimmed.length < 3) return;
+
+    setSaving(true);
+    const { error } = await supabase
+      .from("submissions")
+      .insert({ slide_id: slideId, body: trimmed, source: "presenter" });
+    setSaving(false);
+
+    if (error) return toast.error(error.message);
+    setBody("");
+    toast.success("On the wall");
+  };
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="btn-ghost w-full">
+        <Plus size={16} /> Add one from the floor
+      </button>
+    );
+  }
+
+  return (
+    <section className="card space-y-2 p-4">
+      <p className="text-xs uppercase tracking-[0.24em] text-muted">From the floor</p>
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={2}
+        autoFocus
+        placeholder="Type what they just said…"
+        className="field text-sm"
+      />
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setOpen(false)} className="btn-ghost flex-1">
+          Close
+        </button>
+        <button type="button" onClick={add} disabled={saving} className="btn-primary flex-[2]">
+          {saving ? <Loader2 size={16} className="animate-spin" /> : null} Put it up
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ConnectionBadge({ state }: { state: ConnectionState }) {
+  if (state === "live") {
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-positive/15 px-2.5 py-1 text-xs font-semibold text-positive">
+        <span className="h-1.5 w-1.5 rounded-full bg-positive" /> Live
+      </span>
+    );
+  }
+
+  const copy: Record<Exclude<ConnectionState, "live">, string> = {
+    connecting: "Connecting",
+    degraded: "Slow — updates every 8s",
+    offline: "No network",
+  };
+
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
+        state === "offline" ? "bg-warning/20 text-warning" : "bg-surface text-muted",
+      )}
+    >
+      <WifiOff size={12} /> {copy[state]}
+    </span>
   );
 }
 

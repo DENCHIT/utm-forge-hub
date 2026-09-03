@@ -67,6 +67,14 @@ export const SLIDE_TEMPLATES: Record<SlideType, SlideContent> = {
       "not industry-level commentary.",
     audience_context: "Marketing and growth leaders at mid-size B2B companies.",
     finalistCount: 3,
+    // Most people do not arrive with a problem ready. Tapping an example fills
+    // the box, and they edit from there — far more effective than a blank field.
+    examples: [
+      "Nobody can agree what the data means",
+      "Everything takes three approvals",
+      "We ship, then never hear anything back",
+    ],
+    allowUpvotes: true,
   },
   cluster: {
     heading: "Here is what you all said",
@@ -77,6 +85,8 @@ export const SLIDE_TEMPLATES: Record<SlideType, SlideContent> = {
     heading: "Which one do we solve?",
     question: "One vote each. You can change it until we close.",
     sourceSlideId: "",
+    // Advisory clock on the stage. Nothing closes automatically — you decide.
+    countdownSeconds: 60,
   },
   results: {
     heading: "The room has decided",

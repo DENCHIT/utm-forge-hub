@@ -117,17 +117,39 @@ Deno.serve(async (req) => {
 
   const { data: submissions, error: subsError } = await asService
     .from("submissions")
-    .select("id, body")
+    .select("id, body, source")
     .eq("slide_id", slideId)
     .order("created_at", { ascending: true });
 
   if (subsError) return json({ error: subsError.message }, 500);
   if (!submissions?.length) return json({ error: "No submissions to group yet." }, 400);
 
+  // How many people backed each problem. A problem one person typed and thirty
+  // recognised is the room's problem, and the grouping has to know that.
+  const { data: upvoteRows } = await asService
+    .from("submission_votes")
+    .select("submission_id")
+    .eq("slide_id", slideId);
+
+  const upvotes = new Map<string, number>();
+  for (const row of upvoteRows ?? []) {
+    upvotes.set(row.submission_id, (upvotes.get(row.submission_id) ?? 0) + 1);
+  }
+
   // Presenter-authored steer: "we're after operational problems, not people
   // problems", "ignore anything about pricing", and so on.
   const steer = (slide.content as Record<string, unknown>)?.clustering_context;
   const audience = (slide.content as Record<string, unknown>)?.audience_context;
+
+  // With eight submissions, "aim for 4-8 groups" produces groups of one and a
+  // shortlist that is just three people's sentences. Target the group count to
+  // the volume actually in the room.
+  const target =
+    submissions.length <= 8
+      ? `${finalistCount}-${finalistCount + 1}`
+      : submissions.length <= 20
+        ? "4-6"
+        : "5-8";
 
   const system = [
     "You group problems submitted live by an audience at a conference talk.",
@@ -136,8 +158,12 @@ Deno.serve(async (req) => {
     "- Group by the underlying problem, not by shared wording. Two people who",
     "  describe the same pain in different words belong together.",
     "- Every submission goes in exactly one group. Use its id verbatim.",
-    "- A submission that genuinely stands alone gets its own group of one.",
-    "- Aim for 4-8 groups. Fewer if the room is unanimous, more if it is not.",
+    `- Aim for ${target} groups. There are ${submissions.length} submissions.`,
+    "- Prefer a slightly broader group to a group of one. A shortlist of",
+    "  singletons tells the room nothing it did not already know.",
+    "- Some submissions carry a backing count: that is how many other people",
+    "  said 'that one is mine too'. Weight those far more heavily when you",
+    "  decide what the room's real themes are.",
     "- Label each group in the audience's own register: plain, specific, no",
     "  consultant-speak. It goes on a screen behind the speaker.",
     audience ? `\nWho is in the room: ${audience}` : "",
@@ -162,7 +188,16 @@ Deno.serve(async (req) => {
           role: "user",
           content:
             "Group these submissions.\n\n" +
-            submissions.map((s) => `${s.id}: ${s.body}`).join("\n"),
+            submissions
+              .map((s) => {
+                const backing = upvotes.get(s.id) ?? 0;
+                const notes = [
+                  backing > 0 ? `backed by ${backing}` : null,
+                  s.source === "seed" ? "from a pre-event survey" : null,
+                ].filter(Boolean);
+                return `${s.id}: ${s.body}${notes.length ? ` [${notes.join(", ")}]` : ""}`;
+              })
+              .join("\n"),
         },
       ],
     });
@@ -178,11 +213,15 @@ Deno.serve(async (req) => {
   }
 
   const valid = new Set(submissions.map((s) => s.id));
+  const backingFor = (ids: string[]) =>
+    ids.length + ids.reduce((sum, id) => sum + (upvotes.get(id) ?? 0), 0);
+
   const groups = payload.clusters
     .map((c) => ({ ...c, submission_ids: c.submission_ids.filter((id) => valid.has(id)) }))
     .filter((c) => c.submission_ids.length > 0)
-    // Biggest group wins the room, so rank by size.
-    .sort((a, b) => b.submission_ids.length - a.submission_ids.length);
+    // Rank by how many people are behind a theme, not how many typed. Otherwise
+    // a wordy minority outranks the thing the room actually agreed on.
+    .sort((a, b) => backingFor(b.submission_ids) - backingFor(a.submission_ids));
 
   if (!groups.length) return json({ error: "Nothing could be grouped." }, 502);
 
@@ -218,6 +257,10 @@ Deno.serve(async (req) => {
   );
 
   return json({
-    clusters: inserted.map((c, i) => ({ ...c, size: groups[i].submission_ids.length })),
+    clusters: inserted.map((c, i) => ({
+      ...c,
+      size: groups[i].submission_ids.length,
+      backing: backingFor(groups[i].submission_ids),
+    })),
   });
 });

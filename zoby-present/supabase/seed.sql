@@ -60,9 +60,32 @@ begin
       'Group by the underlying operational problem people face in their own work. ' ||
       'Ignore vendor names and industry commentary.',
     'audience_context', 'Marketing and growth leaders at mid-size B2B companies.',
-    'finalistCount', 3
+    'finalistCount', 3,
+    'examples', jsonb_build_array(
+      'Nobody can agree what the data means',
+      'Everything takes three approvals',
+      'We ship, then never hear anything back'
+    ),
+    'allowUpvotes', true
   ), 'Open submissions from the remote. Wait for the count to plateau — usually 90 seconds.')
   returning id into v_collect;
+
+  -- Seeded problems, on the wall from the first second and labelled as such.
+  --
+  -- These exist so the room never sees an empty screen, and so people who
+  -- arrived without a problem in mind have something to back straight away.
+  -- They are marked source = 'seed' and carry a visible label on the stage and
+  -- on every phone. Replace the text with real answers from your own pre-event
+  -- survey before the day — do not present invented problems as gathered ones.
+  insert into public.submissions (slide_id, body, source, source_label) values
+    (v_collect, 'We cannot tell which channel actually drove the pipeline',
+      'seed', 'Pre-event survey'),
+    (v_collect, 'Every campaign needs sign-off from three people who are never free',
+      'seed', 'Pre-event survey'),
+    (v_collect, 'We produce a lot of content and have no idea if any of it works',
+      'seed', 'Pre-event survey'),
+    (v_collect, 'Sales says the leads are rubbish, we say they never follow up',
+      'seed', 'Pre-event survey');
 
   insert into public.slides (session_id, position, type, content, notes) values
     (v_s1, 2, 'cluster', jsonb_build_object(
@@ -78,8 +101,9 @@ begin
     (v_s1, 4, 'vote', jsonb_build_object(
       'heading', 'Which one do we solve?',
       'question', 'One vote each. You can change it until we close.',
-      'sourceSlideId', v_collect
-    ), 'Open voting. Count down from ten out loud.'),
+      'sourceSlideId', v_collect,
+      'countdownSeconds', 60
+    ), 'Open voting. The clock is advisory — you close it, not the timer.'),
 
     (v_s1, 5, 'results', jsonb_build_object(
       'heading', 'The room has decided',

@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Loader2, Send } from "lucide-react";
+import { ArrowBigUp, Check, Loader2, PartyPopper, Send } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useLiveSession } from "@/hooks/useLiveSession";
-import { useInteraction } from "@/hooks/useInteraction";
+import { useInteraction, type RankedSubmission } from "@/hooks/useInteraction";
 import { useParticipant } from "@/hooks/useParticipant";
+import { usePresence } from "@/hooks/usePresence";
 import { applyTheme, resetTheme } from "@/lib/theme";
 import { cn, pluralise } from "@/lib/utils";
-import type { CollectContent, EventRecord } from "@/lib/types";
+import type { Cluster, CollectContent, EventRecord } from "@/lib/types";
 
 /**
  * What the audience gets after scanning. No sign-up, no app: the phone follows
@@ -80,6 +81,7 @@ function JoinedSession({
 }) {
   const { currentSlide } = useLiveSession(sessionId);
   const { participantId } = useParticipant(eventId);
+  usePresence(sessionId, true);
 
   const sourceSlideId = useMemo(() => {
     if (!currentSlide) return undefined;
@@ -88,15 +90,33 @@ function JoinedSession({
     return typeof source === "string" ? source : undefined;
   }, [currentSlide]);
 
-  const { clusters, votes, tally, totalVotes } = useInteraction(sourceSlideId);
+  const { ranked, clusters, votes, submissionVotes, tally, totalVotes } =
+    useInteraction(sourceSlideId);
   const phase = currentSlide?.phase ?? "idle";
   const myVote = votes.find((v) => v.participant_id === participantId);
+
+  // Which submissions are mine, and did any of them make the shortlist? That
+  // moment - "the thing you typed is on the big screen" - is the single best
+  // reason for the person next to them to join in.
+  const mine = ranked.filter((s) => s.participant_id === participantId);
+  const myFinalist = useMemo(() => {
+    const finalistIds = new Set(clusters.filter((c) => c.is_finalist).map((c) => c.id));
+    const hit = mine.find((s) => s.cluster_id && finalistIds.has(s.cluster_id));
+    return hit ? clusters.find((c) => c.id === hit.cluster_id) ?? null : null;
+  }, [mine, clusters]);
+
+  const collectContent = currentSlide?.content as CollectContent | undefined;
+  const upvotesAllowed =
+    collectContent?.allowUpvotes !== false &&
+    ["collecting", "clustering", "shortlist"].includes(phase);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col gap-5 p-5">
       <header className="pt-4">
         <p className="text-xs uppercase tracking-[0.24em] text-muted">{eventName}</p>
       </header>
+
+      {myFinalist && <FinalistBanner cluster={myFinalist} />}
 
       <AnimatePresence mode="wait">
         <motion.div
@@ -111,7 +131,19 @@ function JoinedSession({
             <SubmitPanel
               slideId={sourceSlideId}
               participantId={participantId}
-              content={currentSlide?.content as CollectContent}
+              content={collectContent}
+              others={ranked.filter((s) => s.participant_id !== participantId)}
+              myUpvotes={submissionVotes}
+              upvotesAllowed={upvotesAllowed}
+            />
+          ) : upvotesAllowed && sourceSlideId ? (
+            // Grouping and shortlist are dead air on a phone otherwise. Keep
+            // people backing each other's problems right up to the vote.
+            <BackPanel
+              slideId={sourceSlideId}
+              participantId={participantId}
+              others={ranked.filter((s) => s.participant_id !== participantId)}
+              myUpvotes={submissionVotes}
             />
           ) : phase === "voting" && sourceSlideId ? (
             <VotePanel
@@ -131,14 +163,124 @@ function JoinedSession({
   );
 }
 
+function FinalistBanner({ cluster }: { cluster: Cluster }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.94 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="card flex items-start gap-3 border-2 p-4"
+      style={{ borderColor: cluster.accent ?? "hsl(var(--brand))" }}
+    >
+      <PartyPopper size={20} className="mt-0.5 shrink-0 text-brand" />
+      <div>
+        <p className="font-display font-bold">Your problem made the top three</p>
+        <p className="text-sm text-muted">It&rsquo;s up there as &ldquo;{cluster.label}&rdquo;.</p>
+      </div>
+    </motion.div>
+  );
+}
+
+/** Shared upvote button used by both the submit and the backing panels. */
+function UpvoteList({
+  slideId,
+  participantId,
+  others,
+  myUpvotes,
+  heading,
+}: {
+  slideId: string;
+  participantId: string | null;
+  others: RankedSubmission[];
+  myUpvotes: { submission_id: string; participant_id: string }[];
+  heading: string;
+}) {
+  const [pending, setPending] = useState<string | null>(null);
+
+  const backed = new Set(
+    myUpvotes.filter((v) => v.participant_id === participantId).map((v) => v.submission_id),
+  );
+
+  const toggle = async (submissionId: string) => {
+    if (!participantId) return;
+    setPending(submissionId);
+
+    if (backed.has(submissionId)) {
+      await supabase
+        .from("submission_votes")
+        .delete()
+        .eq("submission_id", submissionId)
+        .eq("participant_id", participantId);
+    } else {
+      await supabase
+        .from("submission_votes")
+        .insert({ submission_id: submissionId, participant_id: participantId, slide_id: slideId });
+    }
+    setPending(null);
+  };
+
+  if (others.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs uppercase tracking-wider text-muted">{heading}</p>
+      {others.slice(0, 30).map((submission) => {
+        const isBacked = backed.has(submission.id);
+        return (
+          <button
+            key={submission.id}
+            type="button"
+            onClick={() => toggle(submission.id)}
+            disabled={pending !== null}
+            className={cn(
+              "card flex w-full items-start gap-3 p-3 text-left transition active:scale-[0.98]",
+              isBacked && "border-brand bg-brand/10",
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-8 w-11 shrink-0 flex-col items-center justify-center rounded-lg text-xs font-bold",
+                isBacked ? "bg-brand text-white" : "bg-canvas text-muted",
+              )}
+            >
+              {pending === submission.id ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <>
+                  <ArrowBigUp size={14} />
+                  {submission.upvotes > 0 && <span className="text-[10px]">{submission.upvotes}</span>}
+                </>
+              )}
+            </span>
+            <span className="min-w-0 flex-1 text-sm">
+              {submission.body}
+              {submission.source !== "audience" && (
+                <span className="mt-1 block text-[10px] uppercase tracking-wider text-muted">
+                  {submission.source_label ??
+                    (submission.source === "seed" ? "Asked before today" : "From the floor")}
+                </span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SubmitPanel({
   slideId,
   participantId,
   content,
+  others,
+  myUpvotes,
+  upvotesAllowed,
 }: {
   slideId: string;
   participantId: string | null;
   content?: CollectContent;
+  others: RankedSubmission[];
+  myUpvotes: { submission_id: string; participant_id: string }[];
+  upvotesAllowed: boolean;
 }) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -157,7 +299,7 @@ function SubmitPanel({
     setError(null);
     const { error: insertError } = await supabase
       .from("submissions")
-      .insert({ slide_id: slideId, participant_id: participantId, body: trimmed });
+      .insert({ slide_id: slideId, participant_id: participantId, body: trimmed, source: "audience" });
     setSending(false);
 
     if (insertError) {
@@ -169,43 +311,99 @@ function SubmitPanel({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <h1 className="font-display text-2xl font-bold leading-tight">
-        {content?.prompt ?? "What is your biggest problem right now?"}
-      </h1>
+    <div className="space-y-6">
+      <form onSubmit={submit} className="space-y-4">
+        <h1 className="font-display text-2xl font-bold leading-tight">
+          {content?.prompt ?? "What is your biggest problem right now?"}
+        </h1>
 
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder={content?.placeholder ?? "Type your problem…"}
-        maxLength={500}
-        rows={4}
-        autoFocus
-        className="field resize-none text-base"
-      />
+        {/* Worked examples. Most people do not arrive with a problem ready -
+            they need something to react against. */}
+        {content?.examples?.length ? (
+          <div className="flex flex-wrap gap-2">
+            {content.examples.map((example) => (
+              <button
+                key={example}
+                type="button"
+                onClick={() => setBody(example)}
+                className="rounded-full border border-line px-3 py-1.5 text-xs text-muted active:scale-95"
+              >
+                {example}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-      {error && <p className="text-sm text-warning">{error}</p>}
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder={content?.placeholder ?? "Type your problem…"}
+          maxLength={500}
+          rows={4}
+          className="field resize-none text-base"
+        />
 
-      <button type="submit" disabled={sending} className="btn-primary w-full py-3.5 text-base">
-        {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-        Send it in
-      </button>
+        {error && <p className="text-sm text-warning">{error}</p>}
 
-      {/* Sending more than one is fine and encouraged - people warm up. */}
-      {sent.length > 0 && (
-        <div className="space-y-2 pt-2">
-          <p className="text-xs uppercase tracking-wider text-muted">
-            {pluralise(sent.length, "problem")} sent
-          </p>
-          {sent.map((item, i) => (
-            <p key={i} className="card flex items-start gap-2 p-3 text-sm text-muted">
-              <Check size={16} className="mt-0.5 shrink-0 text-positive" />
-              {item}
+        <button type="submit" disabled={sending} className="btn-primary w-full py-3.5 text-base">
+          {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+          Send it in
+        </button>
+
+        {/* Sending more than one is fine and encouraged - people warm up. */}
+        {sent.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <p className="text-xs uppercase tracking-wider text-muted">
+              {pluralise(sent.length, "problem")} sent
             </p>
-          ))}
-        </div>
+            {sent.map((item, i) => (
+              <p key={i} className="card flex items-start gap-2 p-3 text-sm text-muted">
+                <Check size={16} className="mt-0.5 shrink-0 text-positive" />
+                {item}
+              </p>
+            ))}
+          </div>
+        )}
+      </form>
+
+      {upvotesAllowed && (
+        <UpvoteList
+          slideId={slideId}
+          participantId={participantId}
+          others={others}
+          myUpvotes={myUpvotes}
+          heading="Or back one already in"
+        />
       )}
-    </form>
+    </div>
+  );
+}
+
+function BackPanel({
+  slideId,
+  participantId,
+  others,
+  myUpvotes,
+}: {
+  slideId: string;
+  participantId: string | null;
+  others: RankedSubmission[];
+  myUpvotes: { submission_id: string; participant_id: string }[];
+}) {
+  return (
+    <div className="space-y-4">
+      <h1 className="font-display text-2xl font-bold leading-tight">
+        Which of these is also your problem?
+      </h1>
+      <p className="text-sm text-muted">Back as many as you like. It all counts.</p>
+      <UpvoteList
+        slideId={slideId}
+        participantId={participantId}
+        others={others}
+        myUpvotes={myUpvotes}
+        heading="From the room"
+      />
+    </div>
   );
 }
 
@@ -217,7 +415,7 @@ function VotePanel({
 }: {
   slideId: string;
   participantId: string | null;
-  clusters: { id: string; label: string; summary: string | null; accent: string | null; is_finalist: boolean }[];
+  clusters: Cluster[];
   chosenClusterId: string | null;
 }) {
   const [pending, setPending] = useState<string | null>(null);
@@ -239,6 +437,7 @@ function VotePanel({
 
     setPending(null);
     if (voteError) setError(voteError.message);
+    else if (navigator.vibrate) navigator.vibrate(12);
   };
 
   return (
@@ -291,7 +490,7 @@ function ResultsPanel({
   tally,
   totalVotes,
 }: {
-  clusters: { id: string; label: string; accent: string | null; is_finalist: boolean }[];
+  clusters: Cluster[];
   tally: Map<string, number>;
   totalVotes: number;
 }) {

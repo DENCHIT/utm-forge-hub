@@ -8,6 +8,8 @@ interface ClusterStageProps {
   phase: SlidePhase;
   submissions: Submission[];
   clusters: Cluster[];
+  /** submissionId -> upvotes, so a group's badge counts everyone behind it. */
+  upvotes?: Map<string, number>;
 }
 
 /**
@@ -16,7 +18,13 @@ interface ClusterStageProps {
  * lands - shared `layoutId`s do the flying. During `shortlist` everything but
  * the finalists falls away.
  */
-export function ClusterStage({ heading, phase, submissions, clusters }: ClusterStageProps) {
+export function ClusterStage({
+  heading,
+  phase,
+  submissions,
+  clusters,
+  upvotes,
+}: ClusterStageProps) {
   const grouped = new Map<string, Submission[]>();
   const loose: Submission[] = [];
 
@@ -67,6 +75,7 @@ export function ClusterStage({ heading, phase, submissions, clusters }: ClusterS
                     cluster={cluster}
                     members={grouped.get(cluster.id) ?? []}
                     emphasised={phase === "shortlist"}
+                    upvotes={upvotes}
                   />
                 ))}
               </AnimatePresence>
@@ -123,12 +132,21 @@ function ClusterColumn({
   cluster,
   members,
   emphasised,
+  upvotes,
 }: {
   cluster: Cluster;
   members: Submission[];
   emphasised: boolean;
+  upvotes?: Map<string, number>;
 }) {
   const accent = cluster.accent ?? "hsl(var(--brand))";
+
+  // Everyone behind this theme: the people who wrote a problem in it, plus the
+  // people who backed one. Three submissions with forty upvotes is a bigger
+  // deal than eight submissions nobody else recognised, and the badge has to
+  // say so or the shortlist looks arbitrary.
+  const backing =
+    members.length + members.reduce((sum, m) => sum + (upvotes?.get(m.id) ?? 0), 0);
 
   return (
     <motion.div
@@ -162,8 +180,9 @@ function ClusterColumn({
         <span
           className="shrink-0 rounded-full px-[0.6em] py-[0.15em] text-[0.75em] font-bold text-white"
           style={{ backgroundColor: accent }}
+          title="People behind this theme"
         >
-          {members.length}
+          {backing}
         </span>
       </div>
 

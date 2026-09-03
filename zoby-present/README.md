@@ -112,6 +112,73 @@ event and may only write where the current phase invites it (submissions during
 `collecting`, votes during `voting`). Brand tokens live on `orgs.brand` and
 `events.theme` and are painted onto CSS variables at runtime.
 
+## When the room is quiet
+
+The realistic failure is not the wifi. It is eight submissions on a wall built
+for three hundred. Five things address that:
+
+1. **Upvotes.** The audience backs each other's problems with one tap, from the
+   moment the first one lands and right through the grouping. Most people will
+   never type a problem but will happily say "that one is mine too" — so eight
+   submissions and ninety upvotes is a room that took part. The stage shows
+   upvote badges, popular problems get a brighter edge, and the grouping ranks
+   themes by total backing rather than how many people typed.
+2. **Adaptive wall.** At four submissions the cards are large, centred and
+   confident; at three hundred they are dense. A quiet room reads as a curated
+   shortlist, not a flop. See `wallStyle` in `CollectStage.tsx`.
+3. **Examples on the phone.** Tapping one fills the box to edit from. A blank
+   textarea asks people to compose; an example asks them to react, which is a
+   much easier thing to do in front of six hundred people.
+4. **Presenter capture.** "Add one from the floor" on the remote — take a
+   problem verbally and it goes straight on the wall, labelled *From the floor*.
+5. **Seeded problems.** Pre-event survey answers loaded onto the wall before you
+   start, labelled *Asked before today*. The room is never looking at an empty
+   screen, and people have something to back in the first ten seconds.
+
+### On seeding, deliberately
+
+Seeded and presenter-entered submissions carry `source` and are **labelled on
+the stage and on every phone**. That is not an oversight to be styled away. A
+padded wall passed off as live audience activity is a story about you if anyone
+works it out, and in a room where people can see their own submission appear,
+somebody will. Seeded problems from a real pre-event survey are standard
+facilitation practice and work fine when they are named as such. Replace the
+demo seeds in `seed.sql` with genuine survey answers before the day.
+
+## When the network is against you
+
+Conference wifi is the second risk. What is in place:
+
+- **Polling alongside realtime.** Venue networks block or throttle websockets
+  routinely. `useInteraction` polls every 8 seconds regardless, so submissions
+  still land on the stage when the socket is silently dead — just slower.
+- **Connection badge on the remote** (never the stage). *Live*, *Slow — updates
+  every 8s*, or *No network*, so you know whether the room has gone quiet
+  because of the wifi or because nobody is engaged. Those need different
+  responses from you and you have seconds to pick one.
+- **On-device grouping fallback.** If the Edge Function or the Anthropic API is
+  unreachable, the remote groups the submissions locally by keyword overlap and
+  carries on. It is visibly rougher than the model — it misses two people
+  describing the same pain in different words, which is the whole point of the
+  AI — and the toast says so. It exists so you are never stuck on a spinner in
+  front of an audience. See `src/lib/localClustering.ts`.
+- **Screen wake lock** on the remote, so your phone does not lock mid-session.
+
+Two things to do yourself: tether your laptop to your phone as the projector's
+connection if the venue allows it, and rehearse once on the venue network.
+
+## Things that make it land
+
+- **Presence count** on stage — "182 in the room with us" proves it is live and
+  is a far better nudge than asking people to join in.
+- **Turnout on the vote** — "41 votes of 180 in the room" prompts the other 139.
+- **"Your problem made the top three"** on the phone of everyone whose
+  submission landed in a finalist group. The best reason for the person next to
+  them to get involved next time.
+- **Advisory countdown** on the vote. It creates urgency; it never closes
+  anything, because you decide when the room is done.
+- **Haptic tick** when a vote registers on a phone.
+
 ## Known gaps
 
 - The deck builder edits slide content as JSON. Per-type forms are the obvious

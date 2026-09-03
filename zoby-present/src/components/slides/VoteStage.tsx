@@ -1,7 +1,8 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { QrPanel } from "@/components/QrPanel";
 import { Heading } from "./StaticSlides";
-import { pluralise } from "@/lib/utils";
+import { cn, pluralise } from "@/lib/utils";
 import type { Cluster } from "@/lib/types";
 
 interface VoteStageProps {
@@ -14,6 +15,40 @@ interface VoteStageProps {
   joinCode: string;
   /** Hide the bars until the reveal so nobody votes with the herd. */
   blind?: boolean;
+  /** Starts counting once voting opens. Omit for no timer. */
+  countdownSeconds?: number;
+  /** Phones on this session, for the participation nudge. */
+  connected?: number;
+}
+
+/**
+ * A clock on the wall converts "vote whenever" into "vote now". It is advisory:
+ * nothing closes automatically, because the speaker decides when the room is
+ * done, not a timer that started while someone was still reading.
+ */
+function Countdown({ seconds }: { seconds: number }) {
+  const [remaining, setRemaining] = useState(seconds);
+
+  useEffect(() => {
+    setRemaining(seconds);
+    const timer = setInterval(() => setRemaining((n) => Math.max(0, n - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [seconds]);
+
+  const urgent = remaining <= 10 && remaining > 0;
+
+  return (
+    <motion.p
+      animate={urgent ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+      transition={urgent ? { duration: 1, repeat: Infinity } : undefined}
+      className={cn(
+        "font-display text-[2.2em] font-black tabular-nums",
+        urgent ? "text-warning" : "text-ink",
+      )}
+    >
+      {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
+    </motion.p>
+  );
 }
 
 export function VoteStage({
@@ -25,6 +60,8 @@ export function VoteStage({
   joinUrl,
   joinCode,
   blind = true,
+  countdownSeconds,
+  connected = 0,
 }: VoteStageProps) {
   const finalists = clusters.filter((c) => c.is_finalist);
 
@@ -86,6 +123,7 @@ export function VoteStage({
 
       <div className="flex flex-col items-center justify-center gap-[1em] rounded-card border border-line bg-surface p-[1.2em]">
         <p className="text-center text-[1.1em] font-semibold">Vote now</p>
+        {countdownSeconds ? <Countdown seconds={countdownSeconds} /> : null}
         <QrPanel url={joinUrl} joinCode={joinCode} />
         <motion.p
           key={totalVotes}
@@ -95,6 +133,11 @@ export function VoteStage({
         >
           {pluralise(totalVotes, "vote")}
         </motion.p>
+        {/* Turnout, not just raw votes. "41 of 180" is a prompt to the other
+            139 in a way that a bare count never is. */}
+        {connected > totalVotes && (
+          <p className="text-[0.75em] text-muted">of {connected} in the room</p>
+        )}
       </div>
     </div>
   );

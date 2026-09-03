@@ -58,6 +58,8 @@ export interface Slide {
   phase: SlidePhase;
 }
 
+export type SubmissionSource = "audience" | "seed" | "presenter";
+
 export interface Submission {
   id: string;
   slide_id: string;
@@ -65,6 +67,17 @@ export interface Submission {
   body: string;
   cluster_id: string | null;
   created_at: string;
+  /** Where it came from. Anything but `audience` is labelled on the stage. */
+  source: SubmissionSource;
+  source_label: string | null;
+}
+
+/** An upvote on somebody else's submission. */
+export interface SubmissionVote {
+  id: string;
+  submission_id: string;
+  participant_id: string;
+  slide_id: string;
 }
 
 export interface Cluster {
@@ -173,6 +186,13 @@ export interface CollectContent {
   audience_context?: string;
   /** How many groups go through to the vote. */
   finalistCount?: number;
+  /**
+   * Shown under the prompt on the phone as worked examples. Gives people who
+   * arrived without a problem in mind something to react to.
+   */
+  examples?: string[];
+  /** Let the audience upvote each other's problems. On by default. */
+  allowUpvotes?: boolean;
 }
 
 export interface ClusterContent {
@@ -185,6 +205,8 @@ export interface VoteContent {
   heading?: string;
   question?: string;
   sourceSlideId: string;
+  /** Countdown shown on stage once voting opens. Omit for no timer. */
+  countdownSeconds?: number;
 }
 
 export interface ResultsContent {

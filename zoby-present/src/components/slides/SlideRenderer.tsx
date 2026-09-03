@@ -1,4 +1,5 @@
 import { useInteraction } from "@/hooks/useInteraction";
+import { usePresence } from "@/hooks/usePresence";
 import { publicAppUrl } from "@/lib/supabase";
 import {
   BulletsSlide,
@@ -85,7 +86,10 @@ function InteractiveSlide({ slide, event }: { slide: Slide; event: EventRecord |
   const sourceSlideId =
     slide.type === "collect" ? slide.id : ((content.sourceSlideId as string) ?? slide.id);
 
-  const { submissions, clusters, tally, totalVotes } = useInteraction(sourceSlideId);
+  const { ranked, upvotes, clusters, tally, totalVotes } = useInteraction(sourceSlideId);
+  // The stage watches the room's presence but does not announce itself - the
+  // projector is not an audience member.
+  const connected = usePresence(slide.session_id, false);
   const joinUrl = event ? `${publicAppUrl()}/join/${event.join_code}` : publicAppUrl();
   const joinCode = event?.join_code ?? "------";
 
@@ -94,9 +98,10 @@ function InteractiveSlide({ slide, event }: { slide: Slide; event: EventRecord |
       return (
         <CollectStage
           content={slide.content as CollectContent}
-          submissions={submissions}
+          submissions={ranked}
           joinUrl={joinUrl}
           joinCode={joinCode}
+          connected={connected}
         />
       );
     case "cluster":
@@ -106,8 +111,9 @@ function InteractiveSlide({ slide, event }: { slide: Slide; event: EventRecord |
           // A cluster slide sitting at `idle` has not been run yet; show the
           // thinking pool rather than an empty grid.
           phase={slide.phase === "idle" ? "clustering" : slide.phase}
-          submissions={submissions}
+          submissions={ranked}
           clusters={clusters}
+          upvotes={upvotes}
         />
       );
     case "vote": {
@@ -122,6 +128,8 @@ function InteractiveSlide({ slide, event }: { slide: Slide; event: EventRecord |
           joinUrl={joinUrl}
           joinCode={joinCode}
           blind={slide.phase !== "results"}
+          countdownSeconds={slide.phase === "voting" ? voteContent.countdownSeconds : undefined}
+          connected={connected}
         />
       );
     }
