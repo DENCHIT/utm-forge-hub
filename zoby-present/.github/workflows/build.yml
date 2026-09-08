@@ -1,0 +1,76 @@
+# Builds the app and publishes the result to a `deploy` branch.
+#
+# Why this exists: Hostinger's git integration copies the repository's files to
+# the web root. It does not run `npm install` or `npm run build`. Pointing it at
+# `main` therefore serves raw TypeScript, which the browser cannot execute.
+#
+# So `main` holds the source and `deploy` holds the built site. Point Hostinger
+# at `deploy` and every push to main redeploys a working build.
+#
+# The same applies to any other host that serves files from git without a build
+# step. Hosts that DO build (Vercel, Netlify, Cloudflare Pages) should be
+# pointed at `main` instead - this workflow is then unnecessary.
+
+name: Build and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-deploy
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Vite inlines VITE_* variables at BUILD time, so they have to be present
+      # here, not on the web server. Set them as repository secrets:
+      # Settings -> Secrets and variables -> Actions.
+      #
+      # The anon key belongs in the browser bundle by design - row-level
+      # security is what protects the data, not the secrecy of this key. The
+      # service role key must never appear here.
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PUBLIC_APP_URL: ${{ secrets.VITE_PUBLIC_APP_URL }}
+        run: |
+          if [ -z "$VITE_SUPABASE_URL" ] || [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+            echo "::error::VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not set."
+            echo "::error::Add them under Settings > Secrets and variables > Actions."
+            echo "::error::Without them the app builds but cannot reach Supabase."
+            exit 1
+          fi
+          npm run build
+
+      - name: Publish to deploy branch
+        run: |
+          # .htaccess and _redirects come from public/ and are already in dist.
+          # .nojekyll matters only if this is ever served by GitHub Pages, which
+          # otherwise hides directories beginning with an underscore.
+          touch dist/.nojekyll
+
+          cd dist
+          git init -q -b deploy
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Build ${GITHUB_SHA::7}"
+          # Force-push: the deploy branch is a build artefact, not history.
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" deploy

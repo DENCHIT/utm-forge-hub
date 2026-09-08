@@ -1,0 +1,4 @@
+# SPA fallback for Netlify and Cloudflare Pages. Same job as public/.htaccess
+# does on Apache: every route that is not a real file gets index.html, so
+# /join/ZOBY26 and /present/:id work on a hard refresh.
+/*  /index.html  200

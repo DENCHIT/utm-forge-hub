@@ -73,6 +73,80 @@ npm run dev
 `VITE_PUBLIC_APP_URL` sets the origin baked into the QR codes. Leave it unset
 locally; set it to your real domain in production.
 
+## Deploying
+
+This is a Vite app: the browser cannot run the source. Something has to run
+`npm run build` and serve the `dist/` folder. Almost every deployment problem
+with this app is one of those two things.
+
+Two rules that matter more than the host you pick:
+
+1. **Serve `dist/`, never the repository root.** Pointing a web root at the
+   source serves TypeScript, which does nothing.
+2. **Every unknown path must fall back to `index.html`.** There is no
+   `/join/ZOBY26` file on disk — the app makes that route up in the browser. A
+   host without this rule serves the home page fine and 404s the QR code, which
+   is the one link that has to work.
+
+Config for the common hosts is in the repo: `vercel.json`, `netlify.toml`,
+`public/_redirects` (Netlify and Cloudflare Pages), and `public/.htaccess`
+(Apache and LiteSpeed, which is what most shared hosting runs). The last two are
+copied into `dist/` by the build, so they ship with the site.
+
+### Hosts that build for you
+
+Vercel, Netlify and Cloudflare Pages: connect the repository, point at `main`,
+and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the host's
+environment variables. Build command `npm run build`, output `dist` — the config
+files above set that already.
+
+This is the recommended route for a live event: a push rebuilds automatically,
+and you can roll back to a previous deploy in one click if something breaks an
+hour before you go on.
+
+### Hosts that only copy files (Hostinger, cPanel, plain FTP)
+
+Shared hosting git integrations copy the repository into the web root. They do
+not run `npm install` or `npm run build`, so pointing one at `main` serves raw
+source and nothing works.
+
+`.github/workflows/build.yml` solves this: every push to `main` builds the app
+and force-pushes the result to a **`deploy`** branch. Point the host's git
+integration at `deploy` instead of `main` and it copies a working build.
+
+Set up once:
+
+1. In GitHub: **Settings → Secrets and variables → Actions**, add
+   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_PUBLIC_APP_URL`
+   (your live domain, so the QR codes point at the right place).
+2. Push to `main`, or run the workflow manually, and let it create `deploy`.
+3. In the host: connect the repository, choose the **`deploy`** branch, web root
+   at the repository root.
+
+`VITE_*` values are baked in at build time, so they belong in GitHub's secrets,
+not on the web server. Setting them in the hosting panel does nothing.
+
+The anon key is meant to be in the browser bundle — row-level security is what
+protects the data, not the secrecy of that key. The service role key must never
+go anywhere near this build.
+
+### Doing it by hand
+
+```bash
+npm run build            # produces dist/
+```
+
+Upload the **contents** of `dist/` to the web root, including the hidden
+`.htaccess`. Most FTP clients hide dotfiles by default, and a missing
+`.htaccess` is the deep-link 404 again.
+
+### Checking it worked
+
+Open `https://yourdomain/join/ZOBY26` **directly**, not by clicking through from
+the home page. If it loads, routing is right. If it 404s, the fallback rule is
+missing. That single check catches the failure that matters, because it is the
+exact thing six hundred phones are about to do at once.
+
 ## Running a session
 
 1. In the deck builder, **Open the doors** on the event. Audience routes refuse
