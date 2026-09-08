@@ -6,6 +6,7 @@
 
 import Anthropic from "npm:@anthropic-ai/sdk@^0.71.0";
 import { createClient } from "npm:@supabase/supabase-js@^2.57.4";
+import { supabaseEnv } from "../_shared/env.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -71,13 +72,19 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "Missing Authorization header." }, 401);
 
-  const url = Deno.env.get("SUPABASE_URL")!;
+  let env: ReturnType<typeof supabaseEnv>;
+  try {
+    env = supabaseEnv();
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+
   // Acts as the caller, so RLS decides whether they may touch this slide.
-  const asCaller = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, {
+  const asCaller = createClient(env.url, env.publishable, {
     global: { headers: { Authorization: authHeader } },
   });
   // Writes the results back; bypasses RLS deliberately.
-  const asService = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const asService = createClient(env.url, env.secret);
 
   let slideId: string;
   let finalistCount = 3;

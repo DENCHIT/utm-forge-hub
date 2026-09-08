@@ -11,6 +11,7 @@
 
 import Anthropic from "npm:@anthropic-ai/sdk@^0.71.0";
 import { createClient } from "npm:@supabase/supabase-js@^2.57.4";
+import { supabaseEnv } from "../_shared/env.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -92,10 +93,13 @@ Deno.serve(async (req) => {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return json({ error: "ANTHROPIC_API_KEY is not set." }, 500);
 
-  const asService = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  let asService: ReturnType<typeof createClient>;
+  try {
+    const env = supabaseEnv();
+    asService = createClient(env.url, env.secret);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
 
   let submissionId: string | undefined;
   let slideId: string | undefined;
