@@ -1,0 +1,19 @@
+{
+  "name": "Gym - AI training coach",
+  "short_name": "Gym",
+  "description": "An AI coach that writes your programme, adapts it to your week and runs your sets and rest timers.",
+  "start_url": "/gym",
+  "scope": "/gym",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/gym-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

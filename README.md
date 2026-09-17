@@ -71,3 +71,10 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Gym app
+
+This repository also hosts a mobile-first gym app at `/gym`: an AI coach that writes your
+training programme, a workout player with set logging and a rest timer, equipment exclusion
+and catch-up tools for the weeks you cannot train as planned. See
+[README-GYM.md](README-GYM.md).
