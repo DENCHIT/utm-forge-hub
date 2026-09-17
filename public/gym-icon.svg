@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gym">
-  <rect width="512" height="512" rx="112" fill="#2563eb"/>
-  <g fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round">
+  <rect width="512" height="512" rx="112" fill="#0a0d16"/>
+  <g fill="none" stroke="#ff6a1a" stroke-width="34" stroke-linecap="round">
     <path d="M136 256h240"/>
     <path d="M112 196v120M160 172v168M352 172v168M400 196v120"/>
   </g>

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { addDays, parseISO, startOfWeek } from "date-fns";
-import { AlertTriangle, ArrowRight, CalendarClock, Check, Clock, Flame, MessageSquare, Play, Sparkles, Timer } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, Check, Clock, Flame, MessageSquare, Play, Sparkles, Timer, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { sessionMinutes, isoDate, today as todayIso } from "../engine/schedule";
 import { sessionVolume } from "../engine/progression";
 import { formatVolume, friendlyDate, WEEKDAYS } from "../lib/format";
 import { useGym } from "../store/gymStore";
+import { hasEnoughProfile } from "../engine/strength";
 import type { WorkoutSession } from "../types";
 
 function WeekStrip({ sessions }: { sessions: WorkoutSession[] }) {
@@ -40,7 +41,7 @@ function WeekStrip({ sessions }: { sessions: WorkoutSession[] }) {
                 "flex h-9 w-9 items-center justify-center rounded-full border text-xs font-bold",
                 done && "border-success bg-success text-success-foreground",
                 !done && missed && "border-warning/60 bg-warning/10 text-warning",
-                !done && !missed && planned.length > 0 && "border-primary/50 bg-primary/10 text-primary",
+                !done && !missed && planned.length > 0 && "border-accent/50 bg-accent/10 text-accent",
                 !done && !missed && planned.length === 0 && "border-border text-muted-foreground",
                 isToday && !done && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
@@ -110,7 +111,23 @@ export default function Today() {
           </CardContent>
         </Card>
 
-        <div className="mt-4 grid gap-3">
+        <Card className="mt-4 border-accent/40">
+          <CardContent className="flex items-start gap-3 p-4">
+            <User className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">Tell me about you first</p>
+              <p className="text-sm text-muted-foreground">
+                Height, weight, age and experience. It takes thirty seconds and means every lift starts with a sensible
+                weight instead of a guess.
+              </p>
+              <Button asChild size="sm" variant="outline" className="mt-2 h-9">
+                <Link to="/gym/profile">Add your details</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="mt-3 grid gap-3">
           <Card>
             <CardContent className="flex items-start gap-3 p-4">
               <Timer className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
@@ -168,12 +185,27 @@ export default function Today() {
           </Card>
           <Card>
             <CardContent className="p-3 text-center">
-              <ArrowRight className="mx-auto h-4 w-4 text-primary" aria-hidden />
+              <ArrowRight className="mx-auto h-4 w-4 text-accent" aria-hidden />
               <p className="mt-1 text-lg font-bold leading-none tabular-nums">{formatVolume(weekVolume, state.settings.units)}</p>
               <p className="text-[11px] text-muted-foreground">moved</p>
             </CardContent>
           </Card>
         </div>
+
+        {!hasEnoughProfile(state.profile) ? (
+          <Card className="border-accent/40 bg-accent/5">
+            <CardContent className="flex items-center gap-3 p-4">
+              <User className="h-5 w-5 shrink-0 text-accent" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Add your weight and experience</p>
+                <p className="text-xs text-muted-foreground">Then every new lift comes with a starting weight.</p>
+              </div>
+              <Button asChild size="sm" variant="outline" className="h-9 shrink-0">
+                <Link to="/gym/profile">Add</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {status.overdue.length ? (
           <Card className="border-warning/50 bg-warning/5">
@@ -210,7 +242,7 @@ export default function Today() {
 
         {next ? (
           <Card className="overflow-hidden">
-            <div className={cn("px-4 py-3", isToday ? "gradient-primary text-white" : "bg-muted")}>
+            <div className={cn("px-4 py-3", isToday ? "gradient-hero text-white" : "bg-muted")}>
               <p className="text-xs font-semibold uppercase tracking-wide opacity-90">
                 {friendlyDate(next.date)} - week {next.weekNumber}
               </p>

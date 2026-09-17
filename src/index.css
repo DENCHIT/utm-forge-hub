@@ -222,3 +222,152 @@
     transform: translateY(-5px);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Gym theme: dark, neon orange, electric blue.
+   Scoped to a class on <html> that only exists while the gym routes are
+   mounted, so the link builder keeps its own look. Portalled dialogs, sheets
+   and toasts inherit from <html>, so they pick this up too.
+--------------------------------------------------------------------------- */
+
+:root.gym-neon {
+  --background: 226 32% 6%;
+  --foreground: 210 30% 96%;
+
+  --card: 226 26% 10%;
+  --card-foreground: 210 30% 96%;
+
+  --popover: 226 30% 8%;
+  --popover-foreground: 210 30% 96%;
+
+  /* Neon orange */
+  --primary: 22 100% 55%;
+  --primary-foreground: 226 40% 6%;
+  --primary-light: 30 100% 63%;
+  --primary-dark: 16 95% 47%;
+
+  --secondary: 226 22% 16%;
+  --secondary-foreground: 210 30% 96%;
+
+  --muted: 226 22% 14%;
+  --muted-foreground: 219 16% 64%;
+
+  /* Electric blue */
+  --accent: 199 100% 55%;
+  --accent-foreground: 226 40% 6%;
+  --accent-light: 193 100% 66%;
+
+  --success: 154 90% 44%;
+  --success-foreground: 226 40% 6%;
+
+  --warning: 40 100% 56%;
+  --warning-foreground: 226 40% 6%;
+
+  --destructive: 350 92% 58%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 226 20% 18%;
+  --input: 226 20% 22%;
+  --ring: 22 100% 55%;
+
+  --radius: 0.9rem;
+
+  --gradient-primary: linear-gradient(135deg, hsl(16 95% 50%), hsl(30 100% 60%));
+  --gradient-hero: linear-gradient(135deg, hsl(16 96% 48%) 0%, hsl(26 100% 56%) 45%, hsl(199 100% 52%) 100%);
+  --gradient-card: linear-gradient(145deg, hsl(226 26% 12%), hsl(226 26% 9%));
+
+  --shadow-sm: 0 1px 2px 0 hsl(226 40% 2% / 0.6);
+  --shadow-md: 0 4px 14px -2px hsl(226 40% 2% / 0.7);
+  --shadow-lg: 0 18px 40px -12px hsl(226 40% 2% / 0.8);
+  --shadow-glow: 0 0 28px hsl(var(--primary) / 0.45);
+
+  --sidebar-background: 226 30% 8%;
+  --sidebar-foreground: 210 30% 92%;
+  --sidebar-primary: 22 100% 55%;
+  --sidebar-primary-foreground: 226 40% 6%;
+  --sidebar-accent: 226 22% 16%;
+  --sidebar-accent-foreground: 210 30% 96%;
+  --sidebar-border: 226 20% 18%;
+  --sidebar-ring: 22 100% 55%;
+}
+
+/* Daylight variant of the same palette, for anyone who wants it. */
+:root.gym-neon.gym-light {
+  --background: 30 30% 98%;
+  --foreground: 226 40% 10%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 226 40% 10%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 226 40% 10%;
+
+  --primary: 18 92% 48%;
+  --primary-foreground: 0 0% 100%;
+  --primary-light: 26 96% 56%;
+  --primary-dark: 14 90% 42%;
+
+  --secondary: 226 20% 92%;
+  --secondary-foreground: 226 40% 12%;
+
+  --muted: 25 25% 94%;
+  --muted-foreground: 226 12% 42%;
+
+  --accent: 205 92% 44%;
+  --accent-foreground: 0 0% 100%;
+  --accent-light: 199 95% 55%;
+
+  --success: 154 72% 36%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 34 95% 44%;
+  --warning-foreground: 0 0% 100%;
+
+  --destructive: 352 78% 48%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 25 20% 88%;
+  --input: 25 20% 86%;
+  --ring: 18 92% 48%;
+
+  --gradient-primary: linear-gradient(135deg, hsl(16 92% 48%), hsl(28 96% 56%));
+  --gradient-hero: linear-gradient(135deg, hsl(14 92% 46%) 0%, hsl(26 96% 54%) 45%, hsl(205 92% 48%) 100%);
+  --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(25 25% 96%));
+
+  --shadow-glow: 0 0 24px hsl(var(--primary) / 0.28);
+}
+
+/* A little atmosphere behind the dark theme. */
+:root.gym-neon body {
+  background-color: hsl(var(--background));
+  background-image:
+    radial-gradient(60rem 30rem at 12% -8%, hsl(22 100% 50% / 0.16), transparent 60%),
+    radial-gradient(48rem 28rem at 105% 4%, hsl(199 100% 52% / 0.14), transparent 62%);
+  background-attachment: fixed;
+}
+
+:root.gym-neon.gym-light body {
+  background-image:
+    radial-gradient(60rem 30rem at 12% -8%, hsl(22 100% 50% / 0.1), transparent 60%),
+    radial-gradient(48rem 28rem at 105% 4%, hsl(199 100% 52% / 0.09), transparent 62%);
+}
+
+:root.gym-neon ::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--primary) / 0.4);
+}
+
+/* Neon edge for the things that matter: the active set, the live timer. */
+.gym-glow {
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.5), 0 0 22px -4px hsl(var(--primary) / 0.55);
+}
+
+.gym-glow-accent {
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.5), 0 0 22px -4px hsl(var(--accent) / 0.55);
+}
+
+.gym-text-gradient {
+  background: linear-gradient(100deg, hsl(16 100% 55%) 0%, hsl(34 100% 62%) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

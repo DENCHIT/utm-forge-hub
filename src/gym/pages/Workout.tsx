@@ -166,7 +166,7 @@ export default function Workout() {
           const exercise = getExercise(item.exerciseId);
           const isOpen = openItemId === item.itemId;
           const itemDone = item.sets.length > 0 && item.sets.every((set) => set.completed);
-          const suggestion = suggestTarget(item, state.sessions, state.settings.units);
+          const suggestion = suggestTarget(item, state.sessions, state.settings.units, state.profile);
           const previous = historyFor(state.sessions, item.exerciseId)[0];
 
           return (

@@ -85,11 +85,11 @@ export function RestTimer({ timer, onChange, onFinished, sound, haptics, warning
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card shadow-lg">
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-accent/30 bg-card shadow-lg">
       <div className="mx-auto flex max-w-lg items-center gap-3 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="relative h-16 w-16 shrink-0">
           <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-            <circle cx="32" cy="32" r="26" fill="none" strokeWidth="6" className="stroke-muted" />
+            <circle cx="32" cy="32" r="26" fill="none" strokeWidth="6" className="stroke-border" />
             <circle
               cx="32"
               cy="32"
@@ -97,7 +97,7 @@ export function RestTimer({ timer, onChange, onFinished, sound, haptics, warning
               fill="none"
               strokeWidth="6"
               strokeLinecap="round"
-              className={remaining <= warningSec ? "stroke-warning" : "stroke-primary"}
+              className={remaining <= warningSec ? "stroke-warning" : "stroke-accent"}
               strokeDasharray={circumference}
               strokeDashoffset={circumference * (1 - progress)}
               style={{ transition: "stroke-dashoffset 0.2s linear" }}

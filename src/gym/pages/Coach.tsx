@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { GymLayout } from "../components/GymLayout";
 import { PRESETS } from "../data/equipment";
-import { buildSpecFromDraft, coachRespond, OPENING_MESSAGE, OPENING_SUGGESTIONS } from "../coach/localCoach";
+import { buildSpecFromDraft, coachRespond, draftFromProfile, openingMessage, OPENING_SUGGESTIONS } from "../coach/localCoach";
 import { askCoach, CoachError, hasApiKey } from "../coach/llmCoach";
 import { chooseSplit, generateProgram, GOAL_LABEL, SPLIT_LABEL } from "../engine/programGenerator";
 import { useGym } from "../store/gymStore";
@@ -56,7 +56,9 @@ export default function Coach() {
 
   React.useEffect(() => {
     if (!messages.length) {
-      addChatMessage({ role: "assistant", content: OPENING_MESSAGE, suggestions: OPENING_SUGGESTIONS });
+      addChatMessage({ role: "assistant", content: openingMessage(state.profile), suggestions: OPENING_SUGGESTIONS });
+      const seed = draftFromProfile(state.profile);
+      if (Object.keys(seed).length) setCoachDraft(seed);
     }
     // Only ever seeds the very first message.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,7 +87,9 @@ export default function Coach() {
           history,
           available: state.settings.availableEquipment,
           program: state.program,
-          draft: state.coachDraft,
+          draft: { ...draftFromProfile(state.profile), ...state.coachDraft },
+          profile: state.profile,
+          units: state.settings.units,
         });
         setCoachDraft(result.draft);
         if (result.equipmentPreset) {
@@ -95,7 +99,7 @@ export default function Coach() {
         addChatMessage({ role: "assistant", content: result.reply, suggestions: result.suggestions });
         if (result.readyToBuild) setProposal(buildSpecFromDraft({ ...state.coachDraft, ...result.draft }));
       } else {
-        const result = coachRespond(trimmed, state.coachDraft);
+        const result = coachRespond(trimmed, { ...draftFromProfile(state.profile), ...state.coachDraft });
         setCoachDraft(result.draft);
         if (result.equipment) setAvailableEquipment(result.equipment);
         addChatMessage({ role: "assistant", content: result.reply, suggestions: result.suggestions });
@@ -105,7 +109,7 @@ export default function Coach() {
       const message = error instanceof CoachError ? error.message : "Something went wrong talking to the coach.";
       toast.error(message);
       // Fall back to the offline coach so the conversation never dead ends.
-      const result = coachRespond(trimmed, state.coachDraft);
+      const result = coachRespond(trimmed, { ...draftFromProfile(state.profile), ...state.coachDraft });
       setCoachDraft(result.draft);
       addChatMessage({ role: "assistant", content: result.reply, suggestions: result.suggestions });
       if (result.readyToBuild) setProposal(buildSpecFromDraft(result.draft));

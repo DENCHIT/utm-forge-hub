@@ -55,6 +55,7 @@ export function NumberField({ value, onCommit, placeholder, suffix, className, a
         }}
         className={cn(
           "h-12 w-full rounded-lg border border-input bg-background text-center text-base font-semibold tabular-nums",
+          "placeholder:font-normal placeholder:text-muted-foreground/55",
           "focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/30",
           suffix && "pr-6",
         )}

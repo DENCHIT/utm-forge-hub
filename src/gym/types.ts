@@ -261,6 +261,20 @@ export interface Settings {
   weekStartsOn: 0 | 1;
 }
 
+export type Sex = "male" | "female" | "unspecified";
+
+export interface Profile {
+  displayName: string;
+  sex: Sex;
+  birthYear: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  experience: ExperienceLevel | null;
+  /** Anything else the coach should keep in mind. */
+  notes: string;
+  updatedAt: string;
+}
+
 export interface BodyMetric {
   id: string;
   date: string;
@@ -282,7 +296,10 @@ export interface ChatMessage {
 
 export interface GymState {
   version: number;
+  /** Stamped on every change; used to work out which device is ahead. */
+  updatedAt: string;
   settings: Settings;
+  profile: Profile;
   program: Program | null;
   /** Older programmes, newest first. */
   archivedPrograms: Program[];

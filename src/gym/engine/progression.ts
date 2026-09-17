@@ -1,5 +1,6 @@
 import { getExercise } from "../data/exercises";
-import type { LoggedItem, MuscleGroup, SetLog, Units, WorkoutSession } from "../types";
+import { estimateStartingWeight } from "./strength";
+import type { LoggedItem, MuscleGroup, Profile, SetLog, Units, WorkoutSession } from "../types";
 
 export const estimate1RM = (weight: number, reps: number): number =>
   reps <= 1 ? weight : Math.round(weight * (1 + reps / 30) * 10) / 10;
@@ -62,11 +63,28 @@ export interface Suggestion {
  * Double progression: fill the rep range at a given weight, then add the
  * smallest increment and drop back to the bottom of the range.
  */
-export function suggestTarget(item: LoggedItem, sessions: WorkoutSession[], units: Units): Suggestion {
+export function suggestTarget(
+  item: LoggedItem,
+  sessions: WorkoutSession[],
+  units: Units,
+  profile?: Profile,
+): Suggestion {
   const history = historyFor(sessions, item.exerciseId);
   const exercise = getExercise(item.exerciseId);
 
   if (!history.length) {
+    const estimate = profile ? estimateStartingWeight(item.exerciseId, profile, item.repMax, units) : null;
+    if (estimate?.weight != null) {
+      const perHand = estimate.note ? ` ${estimate.note}` : "";
+      return {
+        weight: estimate.weight,
+        reps: item.repMax,
+        hint: `Based on your bodyweight and experience, start around ${estimate.weight}${units}${perHand} for ${item.repMax}. Adjust after the first set.`,
+      };
+    }
+    if (estimate?.kind === "weighted_bodyweight") {
+      return { weight: null, reps: item.repMax, hint: estimate.note };
+    }
     return {
       weight: null,
       reps: item.repMax,

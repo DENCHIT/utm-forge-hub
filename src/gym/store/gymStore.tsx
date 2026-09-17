@@ -12,8 +12,17 @@ import {
   uid,
 } from "../engine/schedule";
 import { bestSubstitute, isUsable, type AvailabilityContext } from "../engine/substitution";
+import { KG_PER_LB } from "../engine/strength";
+import { useAuth } from "./auth";
+import {
+  fetchRemoteState,
+  MissingTableError,
+  pushRemoteState,
+  type RemoteSnapshot,
+} from "./remote";
 import type {
   BodyMetric,
+  Profile,
   ChatMessage,
   Equipment,
   GymState,
@@ -26,11 +35,56 @@ import type {
 } from "../types";
 
 const STORAGE_KEY = "gym.state.v1";
+const SYNC_MARKER_KEY = "gym.sync.v1";
 const STATE_VERSION = 1;
+
+export type SyncStatus = "off" | "syncing" | "synced" | "error" | "conflict";
+
+export interface SyncState {
+  status: SyncStatus;
+  message?: string;
+  lastSyncedAt?: string;
+}
+
+interface SyncMarker {
+  userId: string;
+  remoteUpdatedAt: string;
+}
+
+/** Timestamps can come back in a different format to the one we sent. */
+function sameInstant(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false;
+  const left = new Date(a).getTime();
+  const right = new Date(b).getTime();
+  return Number.isFinite(left) && Number.isFinite(right) && left === right;
+}
+
+function readSyncMarker(): SyncMarker | null {
+  try {
+    const raw = window.localStorage.getItem(SYNC_MARKER_KEY);
+    return raw ? (JSON.parse(raw) as SyncMarker) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSyncMarker(marker: SyncMarker | null): void {
+  try {
+    if (marker) window.localStorage.setItem(SYNC_MARKER_KEY, JSON.stringify(marker));
+    else window.localStorage.removeItem(SYNC_MARKER_KEY);
+  } catch {
+    // Nothing to do; the next sign-in will just ask about conflicts.
+  }
+}
+
+/** Has anything worth keeping been recorded here? */
+export function hasTrainingData(state: GymState): boolean {
+  return Boolean(state.program) || state.sessions.length > 0 || state.metrics.length > 0;
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   units: "kg",
-  theme: "system",
+  theme: "dark",
   availableEquipment: FULL_GYM,
   excludedExerciseIds: [],
   restTimerAutoStart: true,
@@ -42,9 +96,22 @@ export const DEFAULT_SETTINGS: Settings = {
   weekStartsOn: 1,
 };
 
+export const EMPTY_PROFILE: Profile = {
+  displayName: "",
+  sex: "unspecified",
+  birthYear: null,
+  heightCm: null,
+  weightKg: null,
+  experience: null,
+  notes: "",
+  updatedAt: new Date(0).toISOString(),
+};
+
 const EMPTY_STATE: GymState = {
   version: STATE_VERSION,
+  updatedAt: new Date(0).toISOString(),
   settings: DEFAULT_SETTINGS,
+  profile: EMPTY_PROFILE,
   program: null,
   archivedPrograms: [],
   sessions: [],
@@ -63,7 +130,9 @@ function loadState(): GymState {
     return {
       ...EMPTY_STATE,
       ...parsed,
+      updatedAt: parsed.updatedAt ?? new Date().toISOString(),
       settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
+      profile: { ...EMPTY_PROFILE, ...parsed.profile },
     };
   } catch {
     return EMPTY_STATE;
@@ -75,6 +144,7 @@ export interface GymContextValue {
   availability: AvailabilityContext;
   status: ReturnType<typeof analyseSchedule>;
   updateSettings: (patch: Partial<Settings>) => void;
+  updateProfile: (patch: Partial<Profile>) => void;
   installProgram: (program: Program, startDate?: string) => void;
   regenerateProgram: (spec?: Partial<ProgramSpec>) => Program | null;
   updateSpec: (patch: Partial<ProgramSpec>) => void;
@@ -103,6 +173,12 @@ export interface GymContextValue {
   removeMetric: (id: string) => void;
   resetAll: () => void;
   getSession: (sessionId: string) => WorkoutSession | undefined;
+  /** Where cloud sync has got to, and anything it needs from the user. */
+  sync: SyncState;
+  conflict: RemoteSnapshot | null;
+  resolveConflict: (choice: "local" | "remote") => Promise<void>;
+  syncNow: () => Promise<boolean>;
+  signOutAndClear: () => Promise<void>;
 }
 
 const GymContext = React.createContext<GymContextValue | null>(null);
@@ -145,6 +221,22 @@ function reconcileProgram(program: Program, ctx: AvailabilityContext): Program {
 
 export function GymProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<GymState>(loadState);
+  const auth = useAuth();
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+
+  const [sync, setSync] = React.useState<SyncState>({ status: "off" });
+  const [conflict, setConflict] = React.useState<RemoteSnapshot | null>(null);
+  const readyToPushRef = React.useRef(false);
+
+  /** Stamps the change so other devices can tell which copy is newer. */
+  const commit = React.useCallback((updater: (prev: GymState) => GymState) => {
+    setState((prev) => {
+      const next = updater(prev);
+      if (next === prev) return prev;
+      return { ...next, updatedAt: new Date().toISOString() };
+    });
+  }, []);
 
   React.useEffect(() => {
     try {
@@ -153,6 +245,95 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
       // Storage full or blocked; the app still works for this session.
     }
   }, [state]);
+
+  const adopt = React.useCallback((remote: GymState) => {
+    setState({
+      ...EMPTY_STATE,
+      ...remote,
+      settings: { ...DEFAULT_SETTINGS, ...remote.settings },
+      profile: { ...EMPTY_PROFILE, ...remote.profile },
+    });
+  }, []);
+
+  const pushNow = React.useCallback(async (): Promise<boolean> => {
+    if (!auth.user) return false;
+    const snapshot = stateRef.current;
+    try {
+      setSync((prev) => ({ ...prev, status: "syncing" }));
+      await pushRemoteState(auth.user, snapshot, snapshot.updatedAt);
+      writeSyncMarker({ userId: auth.user.id, remoteUpdatedAt: snapshot.updatedAt });
+      setSync({ status: "synced", lastSyncedAt: new Date().toISOString() });
+      return true;
+    } catch (error) {
+      setSync({
+        status: "error",
+        message: error instanceof MissingTableError ? error.message : (error as Error).message,
+      });
+      return false;
+    }
+  }, [auth.user]);
+
+  // Signing in: work out whether this device or the account is ahead.
+  React.useEffect(() => {
+    const user = auth.user;
+    if (!user) {
+      readyToPushRef.current = false;
+      setSync({ status: "off" });
+      setConflict(null);
+      return;
+    }
+
+    let cancelled = false;
+    readyToPushRef.current = false;
+    setSync({ status: "syncing" });
+
+    fetchRemoteState(user.id)
+      .then(async (remote) => {
+        if (cancelled) return;
+        const local = stateRef.current;
+        const marker = readSyncMarker();
+        const remoteIsOurLastSync =
+          remote != null && marker?.userId === user.id && sameInstant(marker.remoteUpdatedAt, remote.updatedAt);
+
+        if (!remote || !hasTrainingData(remote.state) || remoteIsOurLastSync) {
+          // Nothing on the account yet, or it is exactly what we last sent.
+          readyToPushRef.current = true;
+          await pushRemoteState(user, local, local.updatedAt);
+          writeSyncMarker({ userId: user.id, remoteUpdatedAt: local.updatedAt });
+          if (!cancelled) setSync({ status: "synced", lastSyncedAt: new Date().toISOString() });
+          return;
+        }
+
+        if (!hasTrainingData(local)) {
+          adopt(remote.state);
+          writeSyncMarker({ userId: user.id, remoteUpdatedAt: remote.updatedAt });
+          readyToPushRef.current = true;
+          setSync({ status: "synced", lastSyncedAt: new Date().toISOString() });
+          return;
+        }
+
+        // Both sides have real training in them. Never silently bin either.
+        setConflict(remote);
+        setSync({ status: "conflict" });
+      })
+      .catch((error: Error) => {
+        if (cancelled) return;
+        setSync({ status: "error", message: error.message });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user, adopt]);
+
+  // Ongoing changes, batched so a set of quick taps is one write.
+  React.useEffect(() => {
+    if (!auth.user || !readyToPushRef.current || conflict) return;
+    const marker = readSyncMarker();
+    if (marker?.userId === auth.user.id && sameInstant(marker.remoteUpdatedAt, state.updatedAt)) return;
+    const handle = window.setTimeout(() => void pushNow(), 1500);
+    return () => window.clearTimeout(handle);
+  }, [state.updatedAt, auth.user, conflict, pushNow]);
 
   const availability = React.useMemo<AvailabilityContext>(
     () => ({
@@ -166,11 +347,11 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
   const status = React.useMemo(() => analyseSchedule(state.sessions), [state.sessions]);
 
   const patchSession = React.useCallback((sessionId: string, updater: (session: WorkoutSession) => WorkoutSession) => {
-    setState((prev) => ({
+    commit((prev) => ({
       ...prev,
       sessions: prev.sessions.map((session) => (session.id === sessionId ? updater(session) : session)),
     }));
-  }, []);
+  }, [commit]);
 
   const patchItem = React.useCallback(
     (sessionId: string, itemId: string, updater: (item: LoggedItem) => LoggedItem) => {
@@ -204,10 +385,53 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
       status,
 
       updateSettings: (patch) =>
-        setState((prev) => applyAvailability({ ...prev, settings: { ...prev.settings, ...patch } })),
+        commit((prev) => {
+          let next = { ...prev, settings: { ...prev.settings, ...patch } };
+          // Weights are stored in whatever units were on at the time, so a
+          // switch has to convert them or every past session becomes a lie.
+          if (patch.units && patch.units !== prev.settings.units) {
+            const factor = patch.units === "lb" ? 1 / KG_PER_LB : KG_PER_LB;
+            const convert = (value: number | null | undefined) =>
+              value == null ? value : Math.round(value * factor * 10) / 10;
+            next = {
+              ...next,
+              sessions: next.sessions.map((session) => ({
+                ...session,
+                items: session.items.map((item) => ({
+                  ...item,
+                  sets: item.sets.map((set) => ({ ...set, weight: convert(set.weight) ?? null })),
+                })),
+              })),
+              metrics: next.metrics.map((metric) => ({ ...metric, weight: convert(metric.weight) })),
+            };
+          }
+          return applyAvailability(next);
+        }),
+
+      updateProfile: (patch) =>
+        commit((prev) => {
+          const profile: Profile = { ...prev.profile, ...patch, updatedAt: new Date().toISOString() };
+          // A new bodyweight is worth keeping on the graph, not just in the profile.
+          const shouldLog =
+            patch.weightKg != null &&
+            patch.weightKg !== prev.profile.weightKg &&
+            !prev.metrics.some((metric) => metric.date === today() && metric.weight === patch.weightKg);
+          const metrics = shouldLog
+            ? [
+                ...prev.metrics.filter((metric) => metric.date !== today()),
+                { id: uid("metric"), date: today(), weight: patch.weightKg! },
+              ]
+            : prev.metrics;
+          // Experience feeds the programme, so keep the spec in step with it.
+          const program =
+            patch.experience && prev.program
+              ? { ...prev.program, spec: { ...prev.program.spec, experience: patch.experience } }
+              : prev.program;
+          return { ...prev, profile, metrics, program };
+        }),
 
       installProgram: (program, startDate = today()) =>
-        setState((prev) => {
+        commit((prev) => {
           const sessions = buildSchedule(program, startDate);
           const keepHistory = prev.sessions.filter((session) => session.status === "completed" || session.status === "skipped");
           return {
@@ -221,7 +445,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
 
       regenerateProgram: (specPatch) => {
         let created: Program | null = null;
-        setState((prev) => {
+        commit((prev) => {
           const spec: ProgramSpec = { ...(prev.program?.spec ?? DEFAULT_SPEC), ...specPatch };
           const program = generateProgram(spec, {
             available: prev.settings.availableEquipment,
@@ -243,7 +467,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
       },
 
       updateSpec: (patch) =>
-        setState((prev) =>
+        commit((prev) =>
           prev.program ? { ...prev, program: { ...prev.program, spec: { ...prev.program.spec, ...patch } } } : prev,
         ),
 
@@ -294,7 +518,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
         })),
 
       swapProgramExercise: (dayId, itemId, newExerciseId) =>
-        setState((prev) => {
+        commit((prev) => {
           if (!prev.program) return prev;
           const program = {
             ...prev.program,
@@ -333,7 +557,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
       skipSession: (sessionId) => patchSession(sessionId, (session) => ({ ...session, status: "skipped" })),
 
       excludeEquipment: (equipment) =>
-        setState((prev) =>
+        commit((prev) =>
           applyAvailability({
             ...prev,
             settings: {
@@ -344,7 +568,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
         ),
 
       restoreEquipment: (equipment) =>
-        setState((prev) =>
+        commit((prev) =>
           applyAvailability({
             ...prev,
             settings: {
@@ -355,10 +579,10 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
         ),
 
       setAvailableEquipment: (equipment) =>
-        setState((prev) => applyAvailability({ ...prev, settings: { ...prev.settings, availableEquipment: equipment } })),
+        commit((prev) => applyAvailability({ ...prev, settings: { ...prev.settings, availableEquipment: equipment } })),
 
       banExercise: (exerciseId) =>
-        setState((prev) =>
+        commit((prev) =>
           applyAvailability({
             ...prev,
             settings: {
@@ -369,7 +593,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
         ),
 
       unbanExercise: (exerciseId) =>
-        setState((prev) =>
+        commit((prev) =>
           applyAvailability({
             ...prev,
             settings: {
@@ -381,7 +605,7 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
 
       combineOverdue: (sessionIds, capMinutes, dateIso) => {
         let newId: string | null = null;
-        setState((prev) => {
+        commit((prev) => {
           const chosen = prev.sessions.filter((session) => sessionIds.includes(session.id));
           if (chosen.length < 1) return prev;
           const merged = combineSessions(chosen, capMinutes, dateIso);
@@ -398,10 +622,10 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
 
       condense: (sessionId, capMinutes) => patchSession(sessionId, (session) => condenseSession(session, capMinutes)),
 
-      shiftPlan: (days) => setState((prev) => ({ ...prev, sessions: shiftSessions(prev.sessions, today(), days) })),
+      shiftPlan: (days) => commit((prev) => ({ ...prev, sessions: shiftSessions(prev.sessions, today(), days) })),
 
       changeDaysPerWeek: (days, preferredDays) =>
-        setState((prev) => {
+        commit((prev) => {
           if (!prev.program) return prev;
           const spec: ProgramSpec = {
             ...prev.program.spec,
@@ -427,23 +651,54 @@ export function GymProvider({ children }: { children: React.ReactNode }) {
           suggestions: message.suggestions,
           programId: message.programId,
         };
-        setState((prev) => ({ ...prev, chat: [...prev.chat, full] }));
+        commit((prev) => ({ ...prev, chat: [...prev.chat, full] }));
         return full;
       },
 
-      setCoachDraft: (draft) => setState((prev) => ({ ...prev, coachDraft: { ...prev.coachDraft, ...draft } })),
+      setCoachDraft: (draft) => commit((prev) => ({ ...prev, coachDraft: { ...prev.coachDraft, ...draft } })),
 
-      clearChat: () => setState((prev) => ({ ...prev, chat: [], coachDraft: {} })),
+      clearChat: () => commit((prev) => ({ ...prev, chat: [], coachDraft: {} })),
 
-      addMetric: (metric) => setState((prev) => ({ ...prev, metrics: [...prev.metrics, { ...metric, id: uid("metric") }] })),
+      addMetric: (metric) => commit((prev) => ({ ...prev, metrics: [...prev.metrics, { ...metric, id: uid("metric") }] })),
 
-      removeMetric: (id) => setState((prev) => ({ ...prev, metrics: prev.metrics.filter((metric) => metric.id !== id) })),
+      removeMetric: (id) => commit((prev) => ({ ...prev, metrics: prev.metrics.filter((metric) => metric.id !== id) })),
 
-      resetAll: () => setState({ ...EMPTY_STATE, settings: DEFAULT_SETTINGS }),
+      resetAll: () => commit(() => ({ ...EMPTY_STATE, settings: DEFAULT_SETTINGS, updatedAt: new Date().toISOString() })),
 
       getSession: (sessionId) => state.sessions.find((session) => session.id === sessionId),
+
+      sync,
+      conflict,
+
+      resolveConflict: async (choice) => {
+        if (!auth.user || !conflict) return;
+        if (choice === "remote") {
+          adopt(conflict.state);
+          writeSyncMarker({ userId: auth.user.id, remoteUpdatedAt: conflict.updatedAt });
+          setConflict(null);
+          readyToPushRef.current = true;
+          setSync({ status: "synced", lastSyncedAt: new Date().toISOString() });
+          return;
+        }
+        setConflict(null);
+        readyToPushRef.current = true;
+        await pushNow();
+      },
+
+      syncNow: pushNow,
+
+      signOutAndClear: async () => {
+        // Get anything unsaved up first, so signing out is never a data loss.
+        if (auth.user && readyToPushRef.current) await pushNow();
+        await auth.signOut();
+        writeSyncMarker(null);
+        readyToPushRef.current = false;
+        setConflict(null);
+        setSync({ status: "off" });
+        setState({ ...EMPTY_STATE, settings: { ...DEFAULT_SETTINGS }, updatedAt: new Date().toISOString() });
+      },
     };
-  }, [state, availability, status, patchSession, patchItem]);
+  }, [state, availability, status, patchSession, patchItem, commit, sync, conflict, auth, adopt, pushNow]);
 
   return <GymContext.Provider value={value}>{children}</GymContext.Provider>;
 }

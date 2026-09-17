@@ -1,6 +1,6 @@
 import { DEFAULT_SPEC } from "../engine/programGenerator";
 import { PRESETS } from "../data/equipment";
-import type { Equipment, ExperienceLevel, Goal, JointArea, MuscleGroup, ProgramSpec } from "../types";
+import type { Equipment, ExperienceLevel, Goal, JointArea, MuscleGroup, Profile, ProgramSpec } from "../types";
 
 export interface CoachTurn {
   reply: string;
@@ -297,6 +297,20 @@ export function coachRespond(userText: string, current: Partial<ProgramSpec>): C
     equipment,
     readyToBuild: false,
   };
+}
+
+/** Anything the profile already answers, the coach should not ask again. */
+export function draftFromProfile(profile: Profile): Partial<ProgramSpec> {
+  const draft: Partial<ProgramSpec> = {};
+  if (profile.experience) draft.experience = profile.experience;
+  return draft;
+}
+
+export function openingMessage(profile: Profile): string {
+  const name = profile.displayName.trim().split(" ")[0];
+  return name
+    ? `Right ${name}, I am your coach. Tell me what you want out of the gym and anything I should know, and I will write you a programme you can actually follow. What is the goal?`
+    : OPENING_MESSAGE;
 }
 
 export const OPENING_MESSAGE =

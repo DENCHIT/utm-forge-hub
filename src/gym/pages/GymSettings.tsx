@@ -1,6 +1,24 @@
 import * as React from "react";
-import { Link } from "react-router-dom";
-import { Ban, Check, ExternalLink, Eye, EyeOff, KeyRound, ListOrdered, RotateCcw, Sparkles, Volume2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  AlertCircle,
+  Ban,
+  Check,
+  ChevronRight,
+  Cloud,
+  CloudOff,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  KeyRound,
+  ListOrdered,
+  LogOut,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+  User,
+  Volume2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +44,8 @@ import { EQUIPMENT, EQUIPMENT_GROUPS, PRESETS } from "../data/equipment";
 import { getExercise } from "../data/exercises";
 import { COACH_MODEL, hasApiKey } from "../coach/llmCoach";
 import { useGym } from "../store/gymStore";
+import { useAuth } from "../store/auth";
+import { age, formatHeight, KG_PER_LB } from "../engine/strength";
 import type { Equipment, ThemePreference } from "../types";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -33,8 +53,21 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export default function GymSettings() {
-  const { state, updateSettings, setAvailableEquipment, excludeEquipment, restoreEquipment, unbanExercise, resetAll } = useGym();
-  const { settings } = state;
+  const {
+    state,
+    updateSettings,
+    setAvailableEquipment,
+    excludeEquipment,
+    restoreEquipment,
+    unbanExercise,
+    resetAll,
+    sync,
+    syncNow,
+    signOutAndClear,
+  } = useGym();
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const { settings, profile } = state;
   const [showKey, setShowKey] = React.useState(false);
   const [keyDraft, setKeyDraft] = React.useState(settings.anthropicApiKey);
 
@@ -49,9 +82,131 @@ export default function GymSettings() {
     else excludeEquipment(equipment);
   };
 
+  const profileSummary = [
+    profile.displayName.trim() || null,
+    age(profile) ? `${age(profile)} years` : null,
+    profile.heightCm ? formatHeight(profile.heightCm, settings.units) : null,
+    profile.weightKg
+      ? `${Math.round((settings.units === "kg" ? profile.weightKg : profile.weightKg / KG_PER_LB) * 10) / 10}${settings.units}`
+      : null,
+    profile.experience,
+  ]
+    .filter(Boolean)
+    .join(" - ");
+
+  const syncLabel: Record<typeof sync.status, string> = {
+    off: auth.localOnly ? "This device only" : "Not signed in",
+    syncing: "Saving to your account...",
+    synced: "Backed up to your account",
+    error: sync.message ?? "Sync problem",
+    conflict: "Waiting on you to pick a version",
+  };
+
   return (
     <GymLayout title="Settings">
       <div className="space-y-1">
+        <SectionTitle>You</SectionTitle>
+        <Card>
+          <CardContent className="p-0">
+            <Link to="/gym/profile" className="flex items-center gap-3 p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full gradient-primary">
+                <User className="h-5 w-5 text-primary-foreground" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{profile.displayName.trim() || "Your details"}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {profileSummary || "Height, weight and experience, for accurate starting weights"}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <SectionTitle>Account</SectionTitle>
+        <Card>
+          <CardContent className="space-y-3 p-4">
+            {auth.user ? (
+              <>
+                <div className="flex items-start gap-3">
+                  {sync.status === "error" ? (
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden />
+                  ) : (
+                    <Cloud className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{auth.user.email}</p>
+                    <p className="text-xs text-muted-foreground">{syncLabel[sync.status]}</p>
+                  </div>
+                </div>
+                {sync.status === "error" ? (
+                  <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-xs text-muted-foreground">
+                    {sync.message}
+                  </p>
+                ) : null}
+                <div className="flex gap-2">
+                  <Button variant="outline" className="h-10 flex-1 gap-2" onClick={() => void syncNow()}>
+                    <RefreshCw className="h-4 w-4" aria-hidden />
+                    Sync now
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" className="h-10 flex-1 gap-2">
+                        <LogOut className="h-4 w-4" aria-hidden />
+                        Sign out
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Your training is saved to your account first, then cleared off this device so the next person to
+                          open it starts fresh. Sign back in any time to get it all back.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Stay signed in</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            void signOutAndClear().then(() => toast("Signed out"));
+                          }}
+                        >
+                          Sign out
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start gap-3">
+                  <CloudOff className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  <div>
+                    <p className="font-semibold">No account on this device</p>
+                    <p className="text-xs text-muted-foreground">
+                      Everything is in this browser only. Clear your site data and it is gone.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  className="h-11 w-full"
+                  disabled={!auth.configured}
+                  onClick={() => {
+                    auth.leaveLocalMode();
+                    navigate("/gym/auth");
+                  }}
+                >
+                  {auth.configured ? "Create an account or sign in" : "Accounts are not configured"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Signing up moves everything on this device into your account, so nothing is lost.
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         <SectionTitle>Your kit</SectionTitle>
         <Card>
           <CardContent className="space-y-4 p-4">

@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { EQUIPMENT_LABEL } from "../data/equipment";
-import type { ChatMessage, Equipment, Program, ProgramSpec } from "../types";
+import { age, bmi, formatHeight } from "../engine/strength";
+import type { ChatMessage, Equipment, Profile, Program, ProgramSpec, Units } from "../types";
 
 export const COACH_MODEL = "claude-opus-5";
 
@@ -95,7 +96,32 @@ interface CoachPayload {
   };
 }
 
-function systemPrompt(available: Equipment[], program: Program | null, draft: Partial<ProgramSpec>): string {
+function describeProfile(profile: Profile, units: Units): string {
+  const parts: string[] = [];
+  if (profile.displayName.trim()) parts.push(`Name: ${profile.displayName.trim()}`);
+  const years = age(profile);
+  if (years) parts.push(`Age: ${years}`);
+  if (profile.sex !== "unspecified") parts.push(`Sex: ${profile.sex}`);
+  if (profile.heightCm) parts.push(`Height: ${formatHeight(profile.heightCm, units)}`);
+  if (profile.weightKg) {
+    const shown = units === "kg" ? `${Math.round(profile.weightKg)}kg` : `${Math.round(profile.weightKg / 0.45359237)}lb`;
+    parts.push(`Bodyweight: ${shown}`);
+  }
+  const index = bmi(profile);
+  if (index) parts.push(`BMI: ${index}`);
+  if (profile.experience) parts.push(`Training experience: ${profile.experience}`);
+  if (profile.notes.trim()) parts.push(`They also said: ${profile.notes.trim()}`);
+  if (!parts.length) return "";
+  return `What you know about them already: ${parts.join(". ")}.`;
+}
+
+function systemPrompt(
+  available: Equipment[],
+  program: Program | null,
+  draft: Partial<ProgramSpec>,
+  profile: Profile,
+  units: Units,
+): string {
   const kit = available.length > 24 ? "a full commercial gym" : available.map((item) => EQUIPMENT_LABEL[item]).join(", ");
   return [
     "You are a strength and conditioning coach inside a gym app. You are talking to one person about their training.",
@@ -103,6 +129,9 @@ function systemPrompt(available: Equipment[], program: Program | null, draft: Pa
     "Ask one question at a time. Never ask for something the person has already told you.",
     "You need four things before a programme can be built: the goal, how many days a week they can train, how long a session can be, and how much lifting experience they have. Ask about injuries too, but do not block on it.",
     "Push back gently on unrealistic plans. Six days a week for someone who has not trained in a year is worth a word.",
+    describeProfile(profile, units),
+    "Never ask for something the profile already tells you, and use their name occasionally if you have it.",
+    "You can talk about their bodyweight, height and age when it is relevant to training. Be matter of fact about it, never judgemental, and do not give medical or diet advice beyond broad, sensible training-adjacent points.",
     `The equipment they have access to: ${kit}. Do not suggest anything else.`,
     program
       ? `They already have a programme: ${program.name}. ${program.summary} If they are asking for a change, work out what should change and set ready_to_build true to rebuild it.`
@@ -151,6 +180,8 @@ export async function askCoach(options: {
   available: Equipment[];
   program: Program | null;
   draft: Partial<ProgramSpec>;
+  profile: Profile;
+  units: Units;
 }): Promise<LlmCoachResult> {
   // Loaded on demand: most people never add a key, and the SDK is not small.
   const [{ default: AnthropicSdk }, { jsonSchemaOutputFormat }] = await Promise.all([
@@ -177,7 +208,7 @@ export async function askCoach(options: {
     const response = await client.messages.parse({
       model: COACH_MODEL,
       max_tokens: 4000,
-      system: systemPrompt(options.available, options.program, options.draft),
+      system: systemPrompt(options.available, options.program, options.draft, options.profile, options.units),
       messages,
       output_config: {
         format: jsonSchemaOutputFormat(COACH_SCHEMA),
