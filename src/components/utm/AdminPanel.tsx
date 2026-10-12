@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api";
 import { UTMOption, UTMOptionRow, UTMSettings } from "@/types/utm";
 import { Settings, Database, Plus, Trash2, Edit, Save } from "lucide-react";
+import { WebinarAdmin } from "@/components/webinar/WebinarAdmin";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -425,11 +426,12 @@ export function AdminPanel() {
       
       <CardContent>
         <Tabs defaultValue="settings" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="sources">Sources</TabsTrigger>
             <TabsTrigger value="mediums">Mediums</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+            <TabsTrigger value="webinars">Webinars</TabsTrigger>
           </TabsList>
 
           <TabsContent value="settings" className="space-y-6">
@@ -524,6 +526,10 @@ export function AdminPanel() {
 
           <TabsContent value="campaigns" className="space-y-6">
             {renderOptionTable(campaigns, 'campaign', 'Campaign Suggestions')}
+          </TabsContent>
+
+          <TabsContent value="webinars" className="space-y-6">
+            <WebinarAdmin />
           </TabsContent>
         </Tabs>
         </CardContent>

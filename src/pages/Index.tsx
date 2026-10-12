@@ -3,6 +3,7 @@ import { PasswordWrapper } from "@/components/auth/PasswordWrapper";
 import { UTMCreator } from "@/components/utm/UTMCreator";
 import { SavedLinks } from "@/components/utm/SavedLinks";
 import { AdminPanel } from "@/components/utm/AdminPanel";
+import { WebinarAnnouncement } from "@/components/webinar/WebinarAnnouncement";
 import { Button } from "@/components/ui/button";
 import { Link, History, Settings } from "lucide-react";
 
@@ -25,6 +26,9 @@ const Index = () => {
   return (
     <PasswordWrapper>
       <div className="min-h-screen bg-background">
+        {/* Training webinar banner and sign-up pop-up (only when one is scheduled) */}
+        <WebinarAnnouncement />
+
         {/* Header Section */}
         <div className="border-b bg-background">
           <div className="container mx-auto px-6 py-8">

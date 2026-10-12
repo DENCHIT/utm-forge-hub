@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      training_webinars: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          meet_link: string
+          starts_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          meet_link: string
+          starts_at: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          meet_link?: string
+          starts_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_utm_preferences: {
         Row: {
           created_at: string
@@ -154,6 +190,38 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      webinar_signups: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          webinar_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinar_signups_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "training_webinars"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
